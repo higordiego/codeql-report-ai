@@ -75,15 +75,25 @@ jobs:
         run: |
           # Set up OpenSSL environment
           export OPENSSL_DIR="/usr"
-          export OPENSSL_LIB_DIR="/usr/lib/x86_64-linux-gnu"
           export OPENSSL_INCLUDE_DIR="/usr/include"
           export OPENSSL_LIBS="ssl:crypto"
           export OPENSSL_STATIC="0"
           
+          # Find OpenSSL library directory
+          OPENSSL_LIB_DIR=$(find /usr -name "libssl.so*" -type f 2>/dev/null | head -1 | xargs dirname)
+          if [[ -z "$OPENSSL_LIB_DIR" ]]; then
+            OPENSSL_LIB_DIR="/usr/lib/x86_64-linux-gnu"
+          fi
+          export OPENSSL_LIB_DIR="$OPENSSL_LIB_DIR"
+          
           # For musl targets, use static linking
           if [[ "${{ matrix.target }}" == *"musl"* ]]; then
             export OPENSSL_STATIC="1"
-            export OPENSSL_LIB_DIR="/usr/lib"
+            # For musl, try to find static libraries
+            MUSL_LIB_DIR=$(find /usr -name "libssl.a" -type f 2>/dev/null | head -1 | xargs dirname)
+            if [[ -n "$MUSL_LIB_DIR" ]]; then
+              export OPENSSL_LIB_DIR="$MUSL_LIB_DIR"
+            fi
           fi
           
           # Verify OpenSSL installation
@@ -94,9 +104,15 @@ jobs:
           echo "OPENSSL_LIBS: $OPENSSL_LIBS"
           echo "OPENSSL_STATIC: $OPENSSL_STATIC"
           
-          # Check if OpenSSL libraries exist
-          ls -la $OPENSSL_LIB_DIR/libssl*
-          ls -la $OPENSSL_LIB_DIR/libcrypto*
+          # Find OpenSSL libraries
+          echo "Searching for OpenSSL libraries..."
+          find /usr -name "libssl*" -type f 2>/dev/null | head -5
+          find /usr -name "libcrypto*" -type f 2>/dev/null | head -5
+          
+          # Check if OpenSSL libraries exist in expected location
+          echo "Checking expected location: $OPENSSL_LIB_DIR"
+          ls -la $OPENSSL_LIB_DIR/libssl* 2>/dev/null || echo "libssl not found in $OPENSSL_LIB_DIR"
+          ls -la $OPENSSL_LIB_DIR/libcrypto* 2>/dev/null || echo "libcrypto not found in $OPENSSL_LIB_DIR"
           
           cargo build --release --target ${{ matrix.target }}
           
