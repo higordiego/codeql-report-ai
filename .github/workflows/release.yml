@@ -8,20 +8,46 @@ on:
 
 env:
   CARGO_TERM_COLOR: always
+
 jobs:
-  release:
-    name: release ${{ matrix.target }}
+  build:
+    name: Build Linux
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        target: [x86_64-pc-windows-gnu, x86_64-unknown-linux-musl]
+    permissions:
+      contents: write
+    
     steps:
-      - uses: actions/checkout@master
-      - name: Compile and release
-        uses: rust-build/rust-build.action@v1.4.5
+      - name: Checkout código
+        uses: actions/checkout@v4
+
+      - name: Configurar Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          override: true
+
+      - name: Build release
+        run: cargo build --release
+
+      - name: Preparar binário
+        run: |
+          cp target/release/codeql-ai ./codeql-ai
+          chmod +x ./codeql-ai
+
+      - name: Upload binário
+        uses: actions/upload-artifact@v4
+        with:
+          name: codeql-ai-linux
+          path: codeql-ai
+
+      - name: Gerar Release
+        uses: softprops/action-gh-release@v1
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          files: |
+            codeql-ai
+          draft: false
+          prerelease: false
+          generate_release_notes: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          RUSTTARGET: ${{ matrix.target }}
-          EXTRA_FILES: "README.md LICENSE"
