@@ -33,12 +33,15 @@ jobs:
         run: |
           cp target/release/codeql-ai ./codeql-ai
           chmod +x ./codeql-ai
+          tar -czf codeql-ai-linux.tar.gz codeql-ai
 
       - name: Upload binário
         uses: actions/upload-artifact@v4
         with:
           name: codeql-ai-linux
-          path: codeql-ai
+          path: |
+            codeql-ai
+            codeql-ai-linux.tar.gz
 
       - name: Gerar Release
         uses: softprops/action-gh-release@v1
@@ -46,6 +49,7 @@ jobs:
         with:
           files: |
             codeql-ai
+            codeql-ai-linux.tar.gz
           draft: false
           prerelease: false
           generate_release_notes: true
