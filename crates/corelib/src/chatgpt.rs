@@ -259,14 +259,6 @@ Para cada tipo de vulnerabilidade, siga este formato:
 
    * **Explicação:** \[detalhamento técnico com base no JSON]
 
-## Recomendações
-
-\[Liste recomendações práticas para prevenir e corrigir as falhas.]
-
-## Plano de Ação
-
-\[Liste passos claros para corrigir as vulnerabilidades.]
-
 ---
 
 ### REGRAS FIXAS:
