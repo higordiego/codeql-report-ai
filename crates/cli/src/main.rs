@@ -98,7 +98,7 @@ struct Cli {
 
     /// Diretório raiz do projeto
     #[arg(short, long, value_name = "PATH", help_heading = "CONFIGURATION")]
-    project_root: PathBuf,
+    project_root: Option<PathBuf>,
 
     /// Arquivo de saída para o relatório
     #[arg(
@@ -136,6 +136,16 @@ struct Cli {
     /// Incluir sugestões de código corrigido no relatório
     #[arg(short, long, help_heading = "ANALYSIS")]
     include_fixes: bool,
+
+    /// Nível do relatório (easy, medium, advanced)
+    #[arg(
+        short,
+        long,
+        value_name = "LEVEL",
+        default_value = "medium",
+        help_heading = "ANALYSIS"
+    )]
+    report_level: String,
 }
 
 #[tokio::main]
@@ -224,6 +234,10 @@ async fn main() -> Result<()> {
                     "{}",
                     "   --include-fixes Include code fix suggestions".bright_white()
                 );
+                println!(
+                    "{}",
+                    "   --report-level  Report level: easy, medium, advanced".bright_white()
+                );
                 println!("{}", "   --help        Show all options".bright_white());
                 println!();
                 println!(
@@ -264,30 +278,37 @@ async fn main() -> Result<()> {
     let output_path = cli.output.clone();
 
     // Cria configuração
-    let config = match Config::from_env() {
-        Ok(mut config) => {
-            config.openai_api_key = openai_api_key;
-            config.model = cli.model;
-            config.project_root = cli.project_root;
-            config.output_file = cli.output;
-            config.include_fixes = cli.include_fixes;
-            config
-        }
-        Err(_) => Config {
-            openai_api_key,
-            model: cli.model,
-            project_root: cli.project_root,
-            output_file: cli.output,
-            include_fixes: cli.include_fixes,
-            openai_base_url: "https://api.openai.com/v1/chat/completions".to_string(),
-            temperature: 0.8,
-            max_file_bytes: 350000,
-            max_payload_tokens: 120000,
-            chunk_target_tokens: 3000,
-            rate_limit_rps: 30,
-            timeout_seconds: 120,
-        },
-    };
+    let config =
+        match Config::from_env() {
+            Ok(mut config) => {
+                config.openai_api_key = openai_api_key;
+                config.model = cli.model;
+                config.project_root = cli.project_root.clone().unwrap_or_else(|| {
+                    std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."))
+                });
+                config.output_file = cli.output;
+                config.include_fixes = cli.include_fixes;
+                config.report_level = cli.report_level;
+                config
+            }
+            Err(_) => Config {
+                openai_api_key,
+                model: cli.model,
+                project_root: cli.project_root.clone().unwrap_or_else(|| {
+                    std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."))
+                }),
+                output_file: cli.output,
+                include_fixes: cli.include_fixes,
+                report_level: cli.report_level,
+                openai_base_url: "https://api.openai.com/v1/chat/completions".to_string(),
+                temperature: 0.8,
+                max_file_bytes: 350000,
+                max_payload_tokens: 120000,
+                chunk_target_tokens: 3000,
+                rate_limit_rps: 30,
+                timeout_seconds: 120,
+            },
+        };
 
     // Cria o analisador (sem logs visíveis)
     let analyzer = CodeQLAnalyzer::new(config)?;

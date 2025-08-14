@@ -48,6 +48,10 @@ pub struct Config {
     /// Incluir sugestões de código corrigido no relatório
     #[serde(default = "default_include_fixes")]
     pub include_fixes: bool,
+
+    /// Nível do relatório (easy, medium, advanced)
+    #[serde(default = "default_report_level")]
+    pub report_level: String,
 }
 
 impl Config {
@@ -99,6 +103,7 @@ impl Config {
                 .unwrap_or_else(|_| default_include_fixes().to_string())
                 .parse()
                 .unwrap_or(default_include_fixes()),
+            report_level: std::env::var("REPORT_LEVEL").unwrap_or_else(|_| default_report_level()),
         })
     }
 
@@ -168,4 +173,8 @@ fn default_timeout_seconds() -> u64 {
 
 fn default_include_fixes() -> bool {
     false
+}
+
+fn default_report_level() -> String {
+    "medium".to_string()
 }

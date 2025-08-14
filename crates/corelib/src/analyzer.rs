@@ -1,6 +1,24 @@
-use crate::types::*;
+use crate::types::CodeQLAnalysis;
 use colored::*;
 use tracing::{info, warn};
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum ReportLevel {
+    Easy,
+    Medium,
+    Advanced,
+}
+
+impl From<&str> for ReportLevel {
+    fn from(s: &str) -> Self {
+        match s.to_lowercase().as_str() {
+            "easy" => ReportLevel::Easy,
+            "medium" => ReportLevel::Medium,
+            "advanced" => ReportLevel::Advanced,
+            _ => ReportLevel::Medium, // default
+        }
+    }
+}
 
 /// Analisador principal que coordena a análise de CodeQL com ChatGPT
 pub struct CodeQLAnalyzer {
@@ -50,25 +68,58 @@ impl CodeQLAnalyzer {
         let full_file_content = self.read_full_file(&codeql_analysis.results).await?;
         let original_json = self.read_original_json(codeql_json_path).await?;
 
-        // 3. Gera relatório com ChatGPT usando JSON original + arquivo completo
-        println!("{}", "🤖 Gerando relatório com IA...".bright_magenta());
-        let markdown_report = match self
-            .chatgpt_client
-            .analyze_codeql_findings(
-                &codeql_analysis.results,
-                &code_snippets,
-                &full_file_content,
-                &original_json,
-                self.config.include_fixes,
-            )
-            .await
-        {
-            Ok(report) => report,
-            Err(_) => {
-                // Se o ChatGPT falhar, gera um relatório básico
-                warn!("ChatGPT falhou, gerando relatório básico");
-                self.generate_basic_report_with_code(&codeql_analysis, &code_snippets)
+        // 3. Gera relatório baseado no nível solicitado
+        let report_level = ReportLevel::from(self.config.report_level.as_str());
+        println!(
+            "{}",
+            format!("🤖 Gerando relatório {}...", self.config.report_level).bright_magenta()
+        );
+
+        let markdown_report = match report_level {
+            ReportLevel::Easy => {
+                self.generate_easy_report(&codeql_analysis, &full_file_content)
                     .await?
+            }
+            ReportLevel::Medium => {
+                match self
+                    .chatgpt_client
+                    .analyze_codeql_findings(
+                        &codeql_analysis.results,
+                        &code_snippets,
+                        &full_file_content,
+                        &original_json,
+                        self.config.include_fixes,
+                    )
+                    .await
+                {
+                    Ok(report) => report,
+                    Err(_) => {
+                        // Se o ChatGPT falhar, gera um relatório básico
+                        warn!("ChatGPT falhou, gerando relatório básico");
+                        self.generate_basic_report_with_code(&codeql_analysis, &code_snippets)
+                            .await?
+                    }
+                }
+            }
+            ReportLevel::Advanced => {
+                match self
+                    .chatgpt_client
+                    .analyze_codeql_findings_advanced(
+                        &codeql_analysis.results,
+                        &code_snippets,
+                        &full_file_content,
+                        &original_json,
+                    )
+                    .await
+                {
+                    Ok(report) => report,
+                    Err(_) => {
+                        // Se o ChatGPT falhar, gera um relatório básico
+                        warn!("ChatGPT falhou, gerando relatório básico");
+                        self.generate_basic_report_with_code(&codeql_analysis, &code_snippets)
+                            .await?
+                    }
+                }
             }
         };
 
@@ -235,6 +286,54 @@ impl CodeQLAnalyzer {
                 json_path
             )),
         }
+    }
+
+    /// Gera um relatório simples (Easy) com nome da falha e arquivo completo
+    async fn generate_easy_report(
+        &self,
+        codeql_analysis: &CodeQLAnalysis,
+        full_file_content: &str,
+    ) -> crate::Result<String> {
+        let now = chrono::Utc::now().format("%Y-%m-%d %H:%M:%S UTC");
+
+        let mut report = format!(
+            "# Relatório de Segurança - Nível Easy
+
+**Data:** {}  
+**Versão:** 0.1.0  
+**Gerado por:** Code Report
+
+---
+
+## 📋 Falhas Detectadas
+
+",
+            now
+        );
+
+        // Agrupa falhas por tipo
+        let mut vulnerability_groups = std::collections::HashMap::new();
+        for result in &codeql_analysis.results {
+            let key = result.message.clone();
+            vulnerability_groups
+                .entry(key)
+                .or_insert_with(Vec::new)
+                .push(result);
+        }
+
+        // Adiciona cada tipo de falha
+        for (vulnerability_name, _results) in vulnerability_groups {
+            report.push_str(&format!("### {}\n\n", vulnerability_name));
+
+            // Adiciona o arquivo completo
+            report.push_str("**Arquivo Completo para Análise:**\n\n");
+            report.push_str("```python\n");
+            report.push_str(full_file_content);
+            report.push_str("\n```\n\n");
+            report.push_str("---\n\n");
+        }
+
+        Ok(report)
     }
 
     /// Gera um relatório básico com código quando o ChatGPT falha
