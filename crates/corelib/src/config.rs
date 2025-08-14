@@ -44,6 +44,10 @@ pub struct Config {
 
     /// Arquivo de saída para o relatório Markdown
     pub output_file: PathBuf,
+
+    /// Incluir sugestões de código corrigido no relatório
+    #[serde(default = "default_include_fixes")]
+    pub include_fixes: bool,
 }
 
 impl Config {
@@ -91,6 +95,10 @@ impl Config {
                 .parse()
                 .unwrap_or(default_timeout_seconds()),
             output_file,
+            include_fixes: std::env::var("INCLUDE_FIXES")
+                .unwrap_or_else(|_| default_include_fixes().to_string())
+                .parse()
+                .unwrap_or(default_include_fixes()),
         })
     }
 
@@ -135,7 +143,7 @@ fn default_model() -> String {
 }
 
 fn default_temperature() -> f32 {
-    0.2
+    0.8
 }
 
 fn default_max_file_bytes() -> usize {
@@ -155,5 +163,9 @@ fn default_rate_limit_rps() -> u32 {
 }
 
 fn default_timeout_seconds() -> u64 {
-    30
+    120
+}
+
+fn default_include_fixes() -> bool {
+    false
 }

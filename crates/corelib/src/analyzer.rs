@@ -59,6 +59,7 @@ impl CodeQLAnalyzer {
                 &code_snippets,
                 &full_file_content,
                 &original_json,
+                self.config.include_fixes,
             )
             .await
         {

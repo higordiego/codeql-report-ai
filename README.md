@@ -103,7 +103,7 @@ OPTIONS:
 
 - `OPENAI_API_KEY`: Your OpenAI API key (optional, uses demo key if not provided)
 - `OPENAI_MODEL`: ChatGPT model to use (default: gpt-3.5-turbo)
-- `OPENAI_TEMPERATURE`: AI response temperature (default: 0.2)
+- `OPENAI_TEMPERATURE`: AI response temperature (default: 0.8)
 
 ### Example Configuration
 

@@ -147,10 +147,11 @@ impl ChatGPTClient {
         _code_snippets: &[(String, String)], // (file_path, code_content)
         full_file_content: &str,
         original_json: &str,
+        include_fixes: bool,
     ) -> crate::Result<String> {
         let system_message = ChatMessage {
             role: "system".to_string(),
-            content: self.get_system_prompt().to_string(),
+            content: self.get_system_prompt(include_fixes).to_string(),
         };
 
         let user_message = ChatMessage {
@@ -176,23 +177,37 @@ INSTRUÇÕES ESPECÍFICAS:
 5. Inclua as explicações e detalhes que o CodeQL fornece
 6. OBRIGATÓRIO: Para cada linha afetada, SEMPRE mostre o código real da linguagem
 7. Use o código real do arquivo para mostrar as linhas problemáticas
-8. Inclua recomendações baseadas nas informações do CodeQL
+8. Inclua recomendações baseadas nas informações do CodeQL{}
 
 FORMATO OBRIGATÓRIO:
 - Use EXATAMENTE o formato especificado no prompt do sistema
-- Inclua apenas os títulos e seções: Resumo Executivo, Estatísticas, Achados Detalhados
-- Para cada vulnerabilidade, use o formato: **Vulnerabilidade: [nome]**, **Problema:**, **Severidade:**, **Linhas Afetadas:**, **Código das Linhas:**, **Explicação:**
+- Inclua apenas os títulos e seções: Resumo Executivo, Estatísticas, Achados Detalhados{}
+- Para cada vulnerabilidade, use o formato: **Vulnerabilidade: [nome]**, **Problema:**, **Severidade:**, **Linhas Afetadas:**, **Código das Linhas:**, **Explicação:**{}
 - SEMPRE mostre o código real das linhas afetadas, não apenas números de linha
 - Agrupe vulnerabilidades do mesmo tipo em uma única entrada
 
 RESTRIÇÕES IMPORTANTES:
-- NÃO inclua seções de "Correções de Código Sugeridas" ou "Código Corrigido"
 - NÃO inclua seções de "Recomendações" ou "Plano de Ação"
 - MOSTRE APENAS o código original das linhas apontadas pelo CodeQL
-- NÃO forneça sugestões de código corrigido ou alternativo
 - Use EXATAMENTE as linhas de código que o CodeQL identificou como problemáticas
 - NÃO inclua emojis ou formatação colorida no relatório"#,
-                original_json, full_file_content
+                original_json,
+                full_file_content,
+                if include_fixes {
+                    "\n9. INCLUA sugestões de código corrigido e seguro para cada vulnerabilidade"
+                } else {
+                    ""
+                },
+                if include_fixes {
+                    ", Código Corrigido (Seguro)"
+                } else {
+                    ""
+                },
+                if include_fixes {
+                    ", **Código Corrigido (Seguro):**"
+                } else {
+                    ""
+                }
             ),
         };
 
@@ -211,8 +226,53 @@ RESTRIÇÕES IMPORTANTES:
     }
 
     /// Obtém o prompt do sistema
-    fn get_system_prompt(&self) -> &str {
-        r#"Você é um especialista em segurança de código e análise estática. Sua tarefa é analisar o JSON do CodeQL e gerar um relatório completo de segurança.
+    fn get_system_prompt(&self, include_fixes: bool) -> &str {
+        if include_fixes {
+            r#"Você é um especialista em segurança de código e análise estática. Sua tarefa é analisar o JSON do CodeQL e gerar um relatório completo de segurança.
+
+IMPORTANTE: Você deve retornar um relatório completo formatado em MARKDOWN, seguindo EXATAMENTE este formato:
+
+# Relatório de Segurança - Análise de Código com CodeQL
+
+## Resumo Executivo
+[Análise geral baseada no JSON do CodeQL - explique os tipos de vulnerabilidades encontradas e seu impacto]
+
+## Estatísticas
+[Baseadas nos dados do JSON - agrupe por tipo de vulnerabilidade, ex: "- Vulnerabilidades de Command Injection via subprocess: X ocorrências"]
+
+## Achados Detalhados
+[Para cada TIPO de vulnerabilidade encontrado, use este formato exato:]
+
+1. **Vulnerabilidade: [nome exato da vulnerabilidade]**
+   - **Problema:** [descrição exata do problema conforme o JSON]
+   - **Severidade:** [severidade conforme o JSON]
+   - **Linhas Afetadas:**
+     - Linha X: [descrição da linha]
+     - Linha Y: [descrição da linha]
+     - [continue para todas as linhas afetadas]
+   - **Código das Linhas:**
+   ```[linguagem]
+   [código real das linhas afetadas, exatamente como aparece no arquivo]
+   ```
+   - **Explicação:** [explicação baseada nas informações do JSON]
+   - **Código Corrigido (Seguro):**
+   ```[linguagem]
+   [código corrigido e seguro para resolver a vulnerabilidade]
+   ```
+
+REGRAS OBRIGATÓRIAS:
+1. NÃO REPITA a mesma vulnerabilidade múltiplas vezes - agrupe todas as ocorrências do mesmo tipo
+2. Para cada tipo de vulnerabilidade, liste TODAS as linhas afetadas em uma única seção
+3. SEMPRE mostre o código real das linhas afetadas, não apenas números de linha
+4. Use o formato exato mostrado acima, incluindo os títulos e estrutura
+5. Organize por TIPO de vulnerabilidade, não por linha individual
+6. Inclua as explicações e detalhes que o CodeQL fornece no JSON
+7. SEMPRE inclua a seção "Código Corrigido (Seguro)" com o código corrigido
+8. Use EXATAMENTE as linhas de código que o CodeQL identificou como problemáticas
+9. NÃO inclua seções de "Recomendações" ou "Plano de Ação"
+10. NÃO inclua emojis ou formatação colorida no relatório"#
+        } else {
+            r#"Você é um especialista em segurança de código e análise estática. Sua tarefa é analisar o JSON do CodeQL e gerar um relatório completo de segurança.
 
 IMPORTANTE: Você deve retornar um relatório completo formatado em MARKDOWN, seguindo EXATAMENTE este formato:
 
@@ -252,5 +312,6 @@ REGRAS OBRIGATÓRIAS:
 9. Use EXATAMENTE as linhas de código que o CodeQL identificou como problemáticas
 10. NÃO inclua seções de "Recomendações" ou "Plano de Ação"
 11. NÃO inclua emojis ou formatação colorida no relatório"#
+        }
     }
 }

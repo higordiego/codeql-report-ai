@@ -132,6 +132,10 @@ struct Cli {
         help_heading = "LOGGING"
     )]
     verbosity: Level,
+
+    /// Incluir sugestões de código corrigido no relatório
+    #[arg(short, long, help_heading = "ANALYSIS")]
+    include_fixes: bool,
 }
 
 #[tokio::main]
@@ -216,6 +220,10 @@ async fn main() -> Result<()> {
                     "{}",
                     "   -v <level>    Verbosity: debug, trace".bright_white()
                 );
+                println!(
+                    "{}",
+                    "   --include-fixes Include code fix suggestions".bright_white()
+                );
                 println!("{}", "   --help        Show all options".bright_white());
                 println!();
                 println!(
@@ -262,6 +270,7 @@ async fn main() -> Result<()> {
             config.model = cli.model;
             config.project_root = cli.project_root;
             config.output_file = cli.output;
+            config.include_fixes = cli.include_fixes;
             config
         }
         Err(_) => Config {
@@ -269,13 +278,14 @@ async fn main() -> Result<()> {
             model: cli.model,
             project_root: cli.project_root,
             output_file: cli.output,
+            include_fixes: cli.include_fixes,
             openai_base_url: "https://api.openai.com/v1/chat/completions".to_string(),
-            temperature: 0.2,
+            temperature: 0.8,
             max_file_bytes: 350000,
             max_payload_tokens: 120000,
             chunk_target_tokens: 3000,
             rate_limit_rps: 30,
-            timeout_seconds: 30,
+            timeout_seconds: 120,
         },
     };
 
