@@ -37,7 +37,7 @@ jobs:
           openssl version -a || true
           pkg-config --libs --cflags openssl || true
 
-      - name: Cache cargo
+      - name: Cache cargo (gnu)
         uses: actions/cache@v4
         with:
           path: |
@@ -56,7 +56,7 @@ jobs:
           set -euxo pipefail
           cargo build --release --target x86_64-unknown-linux-gnu
 
-      - name: Package
+      - name: Package (gnu)
         run: |
           set -euxo pipefail
           mkdir -p release/linux-x86_64
@@ -75,8 +75,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: linux-x86_64-release
-          path: |
-            codeql-ai-linux-x86_64.tar.gz
+          path: codeql-ai-linux-x86_64.tar.gz
 
   build-musl:
     name: Build (MUSL) x86_64-unknown-linux-musl
@@ -84,9 +83,8 @@ jobs:
     permissions:
       contents: read
       packages: write
-    # Usamos um container que já vem com toolchain MUSL + OpenSSL preparado
     container:
-      image: clux/muslrust:stable-openssl
+      image: ekidd/rust-musl-builder:stable
 
     steps:
       - name: Checkout
@@ -94,14 +92,16 @@ jobs:
 
       - name: Show env
         run: |
-          rustc -Vv
-          cargo -V
+          rustc -Vv || true
+          cargo -V || true
           openssl version -a || true
 
       - name: Cache cargo (musl)
         uses: actions/cache@v4
         with:
           path: |
+            /home/rust/.cargo/registry
+            /home/rust/.cargo/git
             /root/.cargo/registry
             /root/.cargo/git
             target
@@ -111,10 +111,8 @@ jobs:
 
       - name: Build (release, musl)
         env:
-          # Força linkagem estática no musl
           OPENSSL_STATIC: "1"
           PKG_CONFIG_ALLOW_CROSS: "1"
-          RUSTFLAGS: "-C target-feature=-crt-static"
         run: |
           set -euxo pipefail
           rustup target add x86_64-unknown-linux-musl || true
@@ -139,8 +137,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: linux-x86_64-musl-release
-          path: |
-            codeql-ai-linux-x86_64-musl.tar.gz
+          path: codeql-ai-linux-x86_64-musl.tar.gz
 
   release:
     name: Create Release
@@ -210,4 +207,4 @@ jobs:
           prerelease: false
           files: |
             artifacts/linux-x86_64-release/codeql-ai-linux-x86_64.tar.gz
-            artifacts/linux-x86_64-musl-release/codeql-ai-linux-x86_64-musl.tar.gz
+            artifacts/linux-x86_64-musl-release/codeql-ai-linux_x86_64-musl.tar.gz
