@@ -13,8 +13,10 @@ jobs:
   test:
     name: Test and Build
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     
-    steps:
+    steps:git 
       - name: Checkout code
         uses: actions/checkout@v4
         
