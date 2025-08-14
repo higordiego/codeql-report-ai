@@ -8,139 +8,20 @@ on:
 
 env:
   CARGO_TERM_COLOR: always
-
 jobs:
-  build-gnu:
-    name: Build GNU Linux (x86_64)
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: write
-
-    steps:
-      - name: Checkout código
-        uses: actions/checkout@v4
-
-      - name: Configurar toolchain Rust
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: stable
-          override: true
-          target: x86_64-unknown-linux-gnu
-
-      - name: Instalar dependências
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y build-essential pkg-config libssl-dev
-
-      - name: Cache cargo
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            target
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-cargo-
-
-      - name: Build release
-        run: cargo build --release
-
-      - name: Preparar binário
-        run: |
-          # Copiar binário
-          cp target/release/codeql-ai ./codeql-ai
-          chmod +x ./codeql-ai
-          
-          # Gerar checksum
-          sha256sum ./codeql-ai > ./codeql-ai.sha256
-          
-          # Mostrar informações do binário
-          echo "=== Informações do Binário ==="
-          file ./codeql-ai
-          ls -lah ./codeql-ai
-          echo "=== Checksum ==="
-          cat ./codeql-ai.sha256
-
-      - name: Upload binário
-        uses: actions/upload-artifact@v4
-        with:
-          name: codeql-ai-binary
-          path: |
-            codeql-ai
-            codeql-ai.sha256
-
   release:
-    name: Criar Release
-    needs: [build-gnu]
+    name: release ${{ matrix.target }}
     runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags/')
-    permissions:
-      contents: write
-
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [x86_64-pc-windows-gnu, x86_64-unknown-linux-musl]
     steps:
-      - name: Download binário
-        uses: actions/download-artifact@v4
-        with:
-          name: codeql-ai-binary
-          path: binary
-
-      - name: Extrair versão
-        id: version
-        run: |
-          VERSION=${GITHUB_REF#refs/tags/}
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
-
-      - name: Verificar binário
-        run: |
-          echo "=== Verificando binário ==="
-          ls -lah binary/
-          file binary/codeql-ai
-          echo "=== Checksum ==="
-          cat binary/codeql-ai.sha256
-
-      - name: Criar Release
-        uses: softprops/action-gh-release@v2
+      - uses: actions/checkout@master
+      - name: Compile and release
+        uses: rust-build/rust-build.action@v1.4.5
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          tag_name: ${{ steps.version.outputs.version }}
-          name: Code Report ${{ steps.version.outputs.version }}
-          body: |
-            ## Code Report ${{ steps.version.outputs.version }}
-
-            ### 🔍 Ferramenta de Análise de Segurança
-            Integração CodeQL com ChatGPT para análise avançada de código
-
-            ### 🚀 Novidades
-            - Integração CodeQL + ChatGPT
-            - Relatórios de segurança em Markdown
-            - Interface CLI intuitiva
-            - Binário GNU Linux x86_64
-
-            ### 📦 Download Direto
-            Baixe o binário `codeql-ai` diretamente e use:
-
-            ```bash
-            chmod +x codeql-ai
-            sudo mv codeql-ai /usr/local/bin/
-            ```
-
-            ### 🎯 Início Rápido
-            ```bash
-            codeql-ai -p /caminho/do/projeto -i resultados.json
-            ```
-
-            ### 🔒 Verificação
-            Use o arquivo `codeql-ai.sha256` para verificar a integridade:
-            ```bash
-            sha256sum -c codeql-ai.sha256
-            ```
-
-            Execute `codeql-ai --help` para ver todas as opções.
-          draft: false
-          prerelease: false
-          files: |
-            binary/codeql-ai
-            binary/codeql-ai.sha256
+          RUSTTARGET: ${{ matrix.target }}
+          EXTRA_FILES: "README.md LICENSE"
