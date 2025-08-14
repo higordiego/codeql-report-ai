@@ -131,7 +131,7 @@ struct Cli {
         default_value = "info",
         help_heading = "LOGGING"
     )]
-    verbosity: Level,
+    verbosity: Option<Level>,
 
     /// Incluir sugestões de código corrigido no relatório
     #[arg(short, long, help_heading = "ANALYSIS")]
@@ -150,113 +150,14 @@ struct Cli {
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    // Parse dos argumentos CLI com tratamento de erros
-    let cli = match Cli::try_parse() {
-        Ok(cli) => cli,
-        Err(e) => {
-            // Mostra banner mesmo em caso de erro
-            print_banner(true);
-
-            // Verifica o tipo de erro pela mensagem
-            let error_msg = e.to_string();
-
-            // Se for erro relacionado ao parâmetro -v
-            if error_msg.contains("--verbosity") || error_msg.contains("-v") {
-                println!("{}", "❌ Verbosity level not specified".bright_red());
-                println!();
-                println!("{}", "🔧 Verbosity Levels:".bright_yellow());
-                println!(
-                    "{}",
-                    "   info     Basic information (default)".bright_white()
-                );
-                println!(
-                    "{}",
-                    "   debug    Detailed debugging information".bright_white()
-                );
-                println!(
-                    "{}",
-                    "   trace    Complete trace information".bright_white()
-                );
-                println!();
-                println!("{}", "💡 Examples:".bright_yellow());
-                println!(
-                    "{}",
-                    "   ./codeql-ai -i results.json -p . -v debug".bright_white()
-                );
-                println!(
-                    "{}",
-                    "   ./codeql-ai -i results.json -p . -v trace".bright_white()
-                );
-                println!(
-                    "{}",
-                    "   ./codeql-ai -i results.json -p . -v info".bright_white()
-                );
-                println!();
-                println!(
-                    "{}",
-                    "📖 For detailed help: ./codeql-ai --help".bright_cyan()
-                );
-                std::process::exit(1);
-            }
-            // Se for erro de argumento faltando
-            else if e.kind() == clap::error::ErrorKind::MissingRequiredArgument
-                || error_msg.contains("required")
-                || error_msg.contains("supplied")
-            {
-                println!("{}", "❌ Missing required argument".bright_red());
-                println!();
-                println!("{}", "💡 Quick Start:".bright_yellow());
-                println!("{}", "   ./codeql-ai -i results.json -p .".bright_white());
-                println!(
-                    "{}",
-                    "   ./codeql-ai -i results.json -p . -o report.md".bright_white()
-                );
-                println!(
-                    "{}",
-                    "   ./codeql-ai -i results.json -p . -v debug".bright_white()
-                );
-                println!();
-                println!("{}", "🔧 Options:".bright_yellow());
-                println!(
-                    "{}",
-                    "   -i <file>     Input CodeQL results file (required)".bright_white()
-                );
-                println!(
-                    "{}",
-                    "   -p <path>     Project root directory (required)".bright_white()
-                );
-                println!("{}", "   -o <file>     Output report file".bright_white());
-                println!(
-                    "{}",
-                    "   -v <level>    Verbosity: debug, trace".bright_white()
-                );
-                println!(
-                    "{}",
-                    "   --include-fixes Include code fix suggestions".bright_white()
-                );
-                println!(
-                    "{}",
-                    "   --report-level  Report level: easy, medium, advanced".bright_white()
-                );
-                println!("{}", "   --help        Show all options".bright_white());
-                println!();
-                println!(
-                    "{}",
-                    "📖 For detailed help: ./codeql-ai --help".bright_cyan()
-                );
-                std::process::exit(1);
-            } else {
-                // Para outros tipos de erro, mostra o erro padrão do clap
-                e.exit();
-            }
-        }
-    };
+    // Parse dos argumentos CLI
+    let cli = Cli::parse();
 
     // Configura logging se verbosidade for maior que info (incluindo -v)
-    if cli.verbosity > Level::INFO {
-        tracing_subscriber::fmt()
-            .with_max_level(cli.verbosity)
-            .init();
+    if let Some(verbosity) = cli.verbosity {
+        if verbosity > Level::INFO {
+            tracing_subscriber::fmt().with_max_level(verbosity).init();
+        }
     }
 
     // Mostra o banner (sem Quick Start quando há comando)
@@ -264,8 +165,10 @@ async fn main() -> Result<()> {
     print_banner(show_quick_start);
 
     // Log apenas se verbosidade for maior que info (incluindo -v)
-    if cli.verbosity > Level::INFO {
-        info!("🚀 Code Report initialized");
+    if let Some(verbosity) = cli.verbosity {
+        if verbosity > Level::INFO {
+            info!("🚀 Code Report initialized");
+        }
     }
 
     // Obtém a chave da API do OpenAI (com fallback para desenvolvimento)

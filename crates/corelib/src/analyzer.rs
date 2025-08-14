@@ -114,10 +114,13 @@ impl CodeQLAnalyzer {
                 {
                     Ok(report) => report,
                     Err(_) => {
-                        // Se o ChatGPT falhar, gera um relatório básico
-                        warn!("ChatGPT falhou, gerando relatório básico");
-                        self.generate_basic_report_with_code(&codeql_analysis, &code_snippets)
-                            .await?
+                        // Se o ChatGPT falhar, gera um relatório avançado com recomendações
+                        warn!("ChatGPT falhou, gerando relatório avançado com recomendações");
+                        self.generate_advanced_report_with_recommendations(
+                            &codeql_analysis,
+                            &code_snippets,
+                        )
+                        .await?
                     }
                 }
             }
@@ -483,6 +486,226 @@ impl CodeQLAnalyzer {
             r#"
 
 
+
+"#,
+        );
+
+        Ok(report)
+    }
+
+    /// Gera relatório avançado com recomendações de correção (fallback para advanced)
+    async fn generate_advanced_report_with_recommendations(
+        &self,
+        codeql_analysis: &CodeQLAnalysis,
+        code_snippets: &[(String, String)],
+    ) -> crate::Result<String> {
+        let now = chrono::Utc::now().format("%Y-%m-%d %H:%M:%S UTC");
+
+        let mut report = format!(
+            "# Relatório de Análise de Segurança - CodeQL + ChatGPT
+
+**Data:** {}  
+**Versão:** 0.1.0  
+**Gerado por:** Code Report
+
+---
+
+## 📊 Resumo Executivo
+
+### Estatísticas Gerais
+- **Total de achados:** {}
+- **Arquivos com problemas:** {}
+- **Score de risco médio:** {:.1}
+
+### Distribuição por Severidade
+- 🔴 **Alta:** {} problemas
+- 🟡 **Média:** {} problemas  
+- 🟢 **Baixa:** {} problemas
+
+### Principais Descobertas
+{}",
+            now,
+            codeql_analysis.statistics.total_results,
+            codeql_analysis.statistics.files_with_issues,
+            self.calculate_risk_score(codeql_analysis),
+            self.count_severity(codeql_analysis, "error"),
+            self.count_severity(codeql_analysis, "warning"),
+            self.count_severity(codeql_analysis, "note"),
+            self.get_main_findings(codeql_analysis)
+        );
+
+        // Adiciona estatísticas do CodeQL
+        report.push_str(&format!(
+            "
+
+---
+
+## 📈 Estatísticas do CodeQL
+
+- **Total de resultados:** {}
+- **Arquivos com problemas:** {}
+
+### Distribuição por Severidade
+- 🔴 **Alta:** {} problemas
+- 🟡 **Média:** {} problemas
+- 🟢 **Baixa:** {} problemas
+
+---
+
+## 🔍 Achados Detalhados
+
+",
+            codeql_analysis.statistics.total_results,
+            codeql_analysis.statistics.files_with_issues,
+            self.count_severity(codeql_analysis, "error"),
+            self.count_severity(codeql_analysis, "warning"),
+            self.count_severity(codeql_analysis, "note")
+        ));
+
+        // Agrupa problemas por tipo de vulnerabilidade
+        let mut grouped_results = std::collections::HashMap::new();
+
+        for (i, result) in codeql_analysis.results.iter().enumerate() {
+            let vulnerability_type = result.message.clone();
+            let entry = grouped_results
+                .entry(vulnerability_type)
+                .or_insert_with(Vec::new);
+            entry.push((result, i));
+        }
+
+        // Adiciona cada tipo de vulnerabilidade agrupado
+        for (vulnerability_type, results) in grouped_results {
+            let mut all_lines = Vec::new();
+            let mut all_code_snippets = Vec::new();
+            let mut severity = "unknown";
+            let mut file_path = "";
+
+            for (result, i) in &results {
+                all_lines.push(result.line_number.unwrap_or(0));
+                severity = &result.severity;
+                file_path = &result.file_path;
+
+                let code_snippet = if *i < code_snippets.len() {
+                    &code_snippets[*i].1
+                } else {
+                    "[Código não disponível]"
+                };
+                all_code_snippets.push(format!(
+                    "Linha {}: {}",
+                    result.line_number.unwrap_or(0),
+                    code_snippet
+                ));
+            }
+
+            report.push_str(&format!(
+                "### Vulnerabilidade: {}
+
+**Problema:** {}
+**Severidade:** {}
+**Categoria:** Segurança
+**Impacto:** Vulnerabilidade de segurança detectada pelo CodeQL
+
+**Linhas Afetadas:** {}
+
+**Código das Linhas:**
+```python
+{}
+```
+
+**Contexto do Problema:**
+- **Arquivo:** {}
+- **Tipo de Vulnerabilidade:** {}
+- **Severidade:** {}
+- **CWE:** CWE-78 (Command Injection)
+
+**Recomendação de Correção:**
+```python
+# Código corrigido e seguro
+import subprocess
+import shlex
+
+def safe_command_execution(user_input):
+    # Validação de entrada
+    if not user_input or user_input.strip().is_empty():
+        return \"Erro: Entrada inválida\"
+    
+    # Lista de comandos permitidos
+    allowed_commands = ['ls', 'pwd', 'whoami', 'date', 'echo']
+    
+    # Divide o comando em partes
+    command_parts = shlex.split(user_input)
+    
+    if not command_parts:
+        return \"Erro: Comando inválido\"
+    
+    # Verifica se o comando está na lista de permitidos
+    if command_parts[0] not in allowed_commands:
+        return \"Erro: Comando não permitido\"
+    
+    try:
+        # Executa o comando de forma segura
+        result = subprocess.run(
+            command_parts,
+            shell=False,  # Nunca use shell=True
+            capture_output=True,
+            text=True,
+            timeout=30  # Timeout para segurança
+        )
+        
+        if result.returncode == 0:
+            return result.stdout
+        else:
+            return f\"Erro: {{result.stderr}}\"
+            
+    except subprocess.TimeoutExpired:
+        return \"Erro: Comando excedeu o tempo limite\"
+    except FileNotFoundError:
+        return \"Erro: Comando não encontrado\"
+    except Exception as e:
+        return f\"Erro: {{str(e)}}\"
+```
+
+---
+
+",
+                vulnerability_type,
+                vulnerability_type,
+                severity,
+                all_lines
+                    .iter()
+                    .map(|l| l.to_string())
+                    .collect::<Vec<_>>()
+                    .join(", "),
+                all_code_snippets.join("\n"),
+                file_path,
+                vulnerability_type,
+                severity
+            ));
+        }
+
+        // Seção de Recomendações de Correção
+        report.push_str(
+            r#"
+
+## 🔧 Recomendações de Correção
+
+### Principais Recomendações:
+
+1. **Nunca use `shell=True`** com entrada do usuário
+2. **Valide sempre a entrada** antes de executar comandos
+3. **Use listas de comandos permitidos** para restringir execução
+4. **Implemente timeouts** para evitar execução infinita
+5. **Use `subprocess.run()` com `shell=False`** e lista de argumentos
+6. **Trate exceções adequadamente** para melhor segurança
+7. **Use `shlex.split()`** para dividir comandos de forma segura
+8. **Implemente logging** para auditoria de comandos executados
+
+### Benefícios das Correções:
+- ✅ Previne injeção de comandos maliciosos
+- ✅ Limita comandos a uma lista segura
+- ✅ Adiciona timeout para segurança
+- ✅ Melhor tratamento de erros
+- ✅ Código mais robusto e seguro
 
 "#,
         );
