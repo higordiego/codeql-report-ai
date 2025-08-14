@@ -1,0 +1,186 @@
+name: Build and Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+    name: Build for Linux
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        
+      - name: Install Rust toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          override: true
+          
+      - name: Cache dependencies
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
+            
+      - name: Build release
+        run: |
+          cargo build --release
+          
+      - name: Create release directory
+        run: |
+          mkdir -p release
+          
+      - name: Copy binary
+        run: |
+          cp target/release/codeql-ai release/codeql-ai-linux-x86_64
+          chmod +x release/codeql-ai-linux-x86_64
+          
+      - name: Create README for release
+        run: |
+          cat > release/README.md << 'EOF'
+          # Code Report - Linux Release
+          
+          ## Installation
+          
+          ```bash
+          # Download and make executable
+          chmod +x codeql-ai-linux-x86_64
+          
+          # Move to PATH (optional)
+          sudo mv codeql-ai-linux-x86_64 /usr/local/bin/codeql-ai
+          ```
+          
+          ## Usage
+          
+          ```bash
+          # Basic usage
+          ./codeql-ai -i results.json -p /path/to/project
+          
+          # With custom output
+          ./codeql-ai -i results.json -p /path/to/project -o report.md
+          
+          # With debug logging
+          ./codeql-ai -i results.json -p /path/to/project -v debug
+          ```
+          
+          ## Requirements
+          
+          - Linux x86_64
+          - No additional dependencies required
+          
+          ## Version
+          
+          ${{ github.ref_name }}
+          
+          Built on: $(date)
+          EOF
+          
+      - name: Create release archive
+        run: |
+          cd release
+          tar -czf codeql-ai-linux-x86_64.tar.gz *
+          
+      - name: Upload release artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: codeql-ai-linux-release
+          path: release/codeql-ai-linux-x86_64.tar.gz
+          
+  release:
+    name: Create Release
+    needs: build
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/')
+    
+    steps:
+      - name: Download artifacts
+        uses: actions/download-artifact@v3
+        with:
+          name: codeql-ai-linux-release
+          path: release
+          
+      - name: Extract version
+        id: version
+        run: |
+          VERSION=${GITHUB_REF#refs/tags/}
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          
+      - name: Create Release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ steps.version.outputs.version }}
+          release_name: Code Report ${{ steps.version.outputs.version }}
+          body: |
+            ## Code Report ${{ steps.version.outputs.version }}
+            
+            ### 🔍 Advanced Security Analysis Tool
+            Powered by AI & Static Analysis
+            
+            ### 🚀 What's New
+            - Professional security analysis with CodeQL + ChatGPT
+            - AI-powered vulnerability detection
+            - Comprehensive Markdown reports
+            - Clean and intuitive CLI interface
+            
+            ### 📦 Installation
+            
+            Download the Linux binary and extract:
+            ```bash
+            tar -xzf codeql-ai-linux-x86_64.tar.gz
+            chmod +x codeql-ai-linux-x86_64
+            ```
+            
+            ### 🎯 Quick Start
+            
+            ```bash
+            # Basic analysis
+            ./codeql-ai-linux-x86_64 -i results.json -p /path/to/project
+            
+            # With debug logging
+            ./codeql-ai-linux-x86_64 -i results.json -p /path/to/project -v debug
+            ```
+            
+            ### 📋 Features
+            
+            - 🔍 **Static Analysis**: CodeQL integration
+            - 🤖 **AI-Powered**: ChatGPT analysis
+            - 📊 **Detailed Reports**: Markdown format
+            - 🛡️ **Security Focus**: Vulnerability detection
+            - 🎨 **Professional UI**: Colored terminal output
+            
+            ### 🔧 Requirements
+            
+            - Linux x86_64
+            - OpenAI API key (optional, uses demo key for testing)
+            
+            ### 📄 Documentation
+            
+            Run `./codeql-ai-linux-x86_64 --help` for full usage information.
+            
+          draft: false
+          prerelease: false
+          
+      - name: Upload Release Asset
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: release/codeql-ai-linux-x86_64.tar.gz
+          asset_name: codeql-ai-linux-x86_64.tar.gz
+          asset_content_type: application/gzip

@@ -1,0 +1,23 @@
+[package]
+name = "codeql-analyzer"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+description = "CYBER HUNTER - Advanced CodeQL Analysis with AI Integration"
+license.workspace = true
+repository.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[dependencies]
+codeql-corelib = { path = "../corelib" }
+tokio.workspace = true
+clap.workspace = true
+dotenv.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+colored.workspace = true
+
+[[bin]]
+name = "codeql-ai"
+path = "src/main.rs"

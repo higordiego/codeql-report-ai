@@ -1,0 +1,33 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/corelib",
+    "crates/cli"
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+authors = ["Higor Diego <higor@example.com>"]
+description = "Analisador de resultados CodeQL com integração ChatGPT"
+license = "MIT"
+repository = "https://github.com/higordiego/codeql-library-talk"
+keywords = ["codeql", "chatgpt", "static-analysis", "security"]
+categories = ["development-tools", "security"]
+
+[workspace.dependencies]
+tokio = { version = "1.0", features = ["full"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+serde_yaml = "0.9"
+reqwest = { version = "0.11", features = ["json"] }
+thiserror = "1.0"
+walkdir = "2.4"
+clap = { version = "4.0", features = ["derive"] }
+dotenv = "0.15"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "time"] }
+sha2 = "0.10"
+tokio-util = { version = "0.7", features = ["time"] }
+chrono = { version = "0.4", features = ["serde"] }
+colored = "2.0"
