@@ -42,7 +42,10 @@ impl CodeQLAnalyzer {
         let codeql_analysis = self.load_codeql_results(codeql_json_path).await?;
 
         // 2. Extrai o código das linhas apontadas pelo CodeQL e o arquivo completo
-        println!("{}", "📄 Extraindo código das linhas problemáticas...".bright_yellow());
+        println!(
+            "{}",
+            "📄 Extraindo código das linhas problemáticas...".bright_yellow()
+        );
         let code_snippets = self.extract_code_snippets(&codeql_analysis.results).await?;
         let full_file_content = self.read_full_file(&codeql_analysis.results).await?;
         let original_json = self.read_original_json(codeql_json_path).await?;
@@ -51,14 +54,20 @@ impl CodeQLAnalyzer {
         println!("{}", "🤖 Gerando relatório com IA...".bright_magenta());
         let markdown_report = match self
             .chatgpt_client
-            .analyze_codeql_findings(&codeql_analysis.results, &code_snippets, &full_file_content, &original_json)
+            .analyze_codeql_findings(
+                &codeql_analysis.results,
+                &code_snippets,
+                &full_file_content,
+                &original_json,
+            )
             .await
         {
             Ok(report) => report,
             Err(_) => {
                 // Se o ChatGPT falhar, gera um relatório básico
                 warn!("ChatGPT falhou, gerando relatório básico");
-                self.generate_basic_report_with_code(&codeql_analysis, &code_snippets).await?
+                self.generate_basic_report_with_code(&codeql_analysis, &code_snippets)
+                    .await?
             }
         };
 
@@ -202,15 +211,13 @@ impl CodeQLAnalyzer {
         Ok(chunks)
     }
 
-
-
     /// Extrai o código das linhas apontadas pelo CodeQL
     async fn extract_code_snippets(
         &self,
         results: &[crate::types::CodeQLResult],
     ) -> crate::Result<Vec<(String, String)>> {
         let mut snippets = Vec::new();
-        
+
         for result in results {
             if let Some(line_num) = result.line_number {
                 // Constrói o caminho correto para o arquivo
@@ -220,7 +227,7 @@ impl CodeQLAnalyzer {
                 } else {
                     self.config.project_root.join(&result.file_path)
                 };
-                
+
                 // Lê o arquivo e extrai a linha específica
                 if let Ok(content) = std::fs::read_to_string(&file_path) {
                     let lines: Vec<&str> = content.lines().collect();
@@ -229,16 +236,25 @@ impl CodeQLAnalyzer {
                         let code_line = lines[line_idx - 1].to_string();
                         snippets.push((result.file_path.clone(), code_line));
                     } else {
-                        snippets.push((result.file_path.clone(), format!("[Linha {} não encontrada no arquivo]", line_num)));
+                        snippets.push((
+                            result.file_path.clone(),
+                            format!("[Linha {} não encontrada no arquivo]", line_num),
+                        ));
                     }
                 } else {
-                    snippets.push((result.file_path.clone(), format!("[Não foi possível ler o arquivo: {}]", file_path.display())));
+                    snippets.push((
+                        result.file_path.clone(),
+                        format!("[Não foi possível ler o arquivo: {}]", file_path.display()),
+                    ));
                 }
             } else {
-                snippets.push((result.file_path.clone(), "[Número da linha não disponível]".to_string()));
+                snippets.push((
+                    result.file_path.clone(),
+                    "[Número da linha não disponível]".to_string(),
+                ));
             }
         }
-        
+
         Ok(snippets)
     }
 
@@ -255,10 +271,13 @@ impl CodeQLAnalyzer {
             } else {
                 self.config.project_root.join(&first_result.file_path)
             };
-            
+
             match std::fs::read_to_string(&file_path) {
                 Ok(content) => Ok(content),
-                Err(_) => Ok(format!("[Não foi possível ler o arquivo completo: {}]", file_path.display()))
+                Err(_) => Ok(format!(
+                    "[Não foi possível ler o arquivo completo: {}]",
+                    file_path.display()
+                )),
             }
         } else {
             Ok("[Nenhum arquivo encontrado nos resultados]".to_string())
@@ -269,7 +288,10 @@ impl CodeQLAnalyzer {
     async fn read_original_json(&self, json_path: &str) -> crate::Result<String> {
         match std::fs::read_to_string(json_path) {
             Ok(content) => Ok(content),
-            Err(_) => Ok(format!("[Não foi possível ler o JSON original: {}]", json_path))
+            Err(_) => Ok(format!(
+                "[Não foi possível ler o JSON original: {}]",
+                json_path
+            )),
         }
     }
 
@@ -344,35 +366,41 @@ impl CodeQLAnalyzer {
 
         // Agrupa problemas por tipo de vulnerabilidade
         let mut grouped_results = std::collections::HashMap::new();
-        
+
         for (i, result) in codeql_analysis.results.iter().enumerate() {
             let vulnerability_type = result.message.clone();
-            let entry = grouped_results.entry(vulnerability_type).or_insert_with(Vec::new);
+            let entry = grouped_results
+                .entry(vulnerability_type)
+                .or_insert_with(Vec::new);
             entry.push((result, i));
         }
-        
+
         // Adiciona cada tipo de vulnerabilidade agrupado
         for (vulnerability_type, results) in grouped_results {
             let mut all_lines = Vec::new();
             let mut all_code_snippets = Vec::new();
             let mut severity = "unknown";
             let mut file_path = "";
-            
+
             for (result, i) in &results {
                 all_lines.push(result.line_number.unwrap_or(0));
                 severity = &result.severity;
                 file_path = &result.file_path;
-                
+
                 let code_snippet = if *i < code_snippets.len() {
                     &code_snippets[*i].1
                 } else {
                     "[Código não disponível]"
                 };
-                all_code_snippets.push(format!("Linha {}: {}", result.line_number.unwrap_or(0), code_snippet));
+                all_code_snippets.push(format!(
+                    "Linha {}: {}",
+                    result.line_number.unwrap_or(0),
+                    code_snippet
+                ));
             }
-            
-                    report.push_str(&format!(
-            "### Vulnerabilidade: {}
+
+            report.push_str(&format!(
+                "### Vulnerabilidade: {}
 
 **Problema:** {}
 **Severidade:** {}
@@ -399,14 +427,18 @@ impl CodeQLAnalyzer {
                 vulnerability_type,
                 vulnerability_type,
                 severity,
-                all_lines.iter().map(|l| l.to_string()).collect::<Vec<_>>().join(", "),
+                all_lines
+                    .iter()
+                    .map(|l| l.to_string())
+                    .collect::<Vec<_>>()
+                    .join(", "),
                 all_code_snippets.join("\n"),
                 file_path,
                 vulnerability_type,
                 severity
             ));
         }
-        
+
         // Adiciona seção de correções de código sugeridas
         report.push_str(&format!(
             r#"
