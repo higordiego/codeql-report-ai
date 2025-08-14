@@ -168,22 +168,22 @@ ARQUIVO DE CÓDIGO ANALISADO:
 {}
 ```
 
-INSTRUÇÕES DE ORGANIZAÇÃO:
+INSTRUÇÕES ESPECÍFICAS:
 1. Analise o JSON do CodeQL para identificar os TIPOS de vulnerabilidades
 2. AGRUPE vulnerabilidades do mesmo tipo - NÃO repita a mesma falha múltiplas vezes
 3. Para cada tipo de vulnerabilidade, liste TODAS as linhas afetadas em uma única seção
-4. Se há 7 falhas da mesma vulnerabilidade, mostre apenas 1 entrada com todas as 7 linhas
-5. Use as informações do JSON (mensagens, severidade, localização) para explicar cada problema
-6. Inclua as explicações e detalhes que o CodeQL fornece
-7. Gere um relatório bem estruturado e organizado em Markdown
-8. OBRIGATÓRIO: Para cada linha afetada, SEMPRE mostre o código real da linguagem (Python, JavaScript, etc.)
-9. Use o código real do arquivo para mostrar as linhas problemáticas
-10. Inclua recomendações baseadas nas informações do CodeQL
+4. Use as informações do JSON (mensagens, severidade, localização) para explicar cada problema
+5. Inclua as explicações e detalhes que o CodeQL fornece
+6. OBRIGATÓRIO: Para cada linha afetada, SEMPRE mostre o código real da linguagem
+7. Use o código real do arquivo para mostrar as linhas problemáticas
+8. Inclua recomendações baseadas nas informações do CodeQL
 
-EXEMPLO DE ORGANIZAÇÃO:
-- Se há 7 falhas de "Command Injection via subprocess", mostre apenas 1 seção com todas as 7 linhas
-- Não crie 7 seções separadas para a mesma vulnerabilidade
-- SEMPRE mostre o código real das linhas afetadas, não apenas números de linha"#,
+FORMATO OBRIGATÓRIO:
+- Use EXATAMENTE o formato especificado no prompt do sistema
+- Inclua todos os títulos e seções: Resumo Executivo, Estatísticas, Achados Detalhados, Recomendações, Plano de Ação
+- Para cada vulnerabilidade, use o formato: **Vulnerabilidade: [nome]**, **Problema:**, **Severidade:**, **Linhas Afetadas:**, **Código das Linhas:**, **Explicação:**
+- SEMPRE mostre o código real das linhas afetadas, não apenas números de linha
+- Agrupe vulnerabilidades do mesmo tipo em uma única entrada"#,
                 original_json, full_file_content
             ),
         };
@@ -204,6 +204,46 @@ EXEMPLO DE ORGANIZAÇÃO:
 
     /// Obtém o prompt do sistema
     fn get_system_prompt(&self) -> &str {
-        "Você é um especialista em segurança de código e análise estática. Sua tarefa é analisar o JSON do CodeQL e gerar um relatório completo de segurança. IMPORTANTE: Você deve retornar um relatório completo formatado em MARKDOWN, não JSON. REGRAS DE ORGANIZAÇÃO: 1. NÃO REPITA a mesma vulnerabilidade múltiplas vezes. Se há várias ocorrências da mesma falha, agrupe-as em uma única entrada. 2. Para cada tipo de vulnerabilidade, liste TODAS as linhas afetadas em uma única seção. 3. Se há 7 falhas da mesma vulnerabilidade, mostre apenas 1 entrada com todas as 7 linhas. 4. Organize por TIPO de vulnerabilidade, não por linha individual. 5. OBRIGATÓRIO: Para cada linha afetada, SEMPRE mostre o código real da linguagem (Python, JavaScript, etc.) O relatório deve incluir: # Relatório de Segurança - Análise de Código com CodeQL ## Resumo Executivo [Análise geral baseada no JSON do CodeQL] ## Estatísticas [Baseadas nos dados do JSON - agrupe por tipo de vulnerabilidade] ## Achados Detalhados [Para cada TIPO de vulnerabilidade encontrado, inclua:] 1. **Vulnerabilidade: [tipo]** - **Problema:** [descrição do JSON] - **Severidade:** [do JSON] - **Linhas Afetadas:** [lista de todas as linhas] - **Código das Linhas:** ```[linguagem] [código real das linhas] ``` - **Explicação:** [baseada nas informações do JSON] ## Recomendações [Baseadas nas vulnerabilidades detectadas] ## Plano de Ação [Ações específicas para corrigir os problemas] REGRA IMPORTANTE: Agrupe vulnerabilidades do mesmo tipo, não repita a mesma falha múltiplas vezes, e SEMPRE mostre o código real das linhas afetadas."
+        r#"Você é um especialista em segurança de código e análise estática. Sua tarefa é analisar o JSON do CodeQL e gerar um relatório completo de segurança.
+
+IMPORTANTE: Você deve retornar um relatório completo formatado em MARKDOWN, seguindo EXATAMENTE este formato:
+
+# Relatório de Segurança - Análise de Código com CodeQL
+
+## Resumo Executivo
+[Análise geral baseada no JSON do CodeQL - explique os tipos de vulnerabilidades encontradas e seu impacto]
+
+## Estatísticas
+[Baseadas nos dados do JSON - agrupe por tipo de vulnerabilidade, ex: "- Vulnerabilidades de Command Injection via subprocess: X ocorrências"]
+
+## Achados Detalhados
+[Para cada TIPO de vulnerabilidade encontrado, use este formato exato:]
+
+1. **Vulnerabilidade: [nome exato da vulnerabilidade]**
+   - **Problema:** [descrição exata do problema conforme o JSON]
+   - **Severidade:** [severidade conforme o JSON]
+   - **Linhas Afetadas:**
+     - Linha X: [descrição da linha]
+     - Linha Y: [descrição da linha]
+     - [continue para todas as linhas afetadas]
+   - **Código das Linhas:**
+   ```[linguagem]
+   [código real das linhas afetadas, exatamente como aparece no arquivo]
+   ```
+   - **Explicação:** [explicação baseada nas informações do JSON]
+
+## Recomendações
+[Baseadas nas vulnerabilidades detectadas - liste recomendações específicas]
+
+## Plano de Ação
+[Ações específicas para corrigir os problemas identificados]
+
+REGRAS OBRIGATÓRIAS:
+1. NÃO REPITA a mesma vulnerabilidade múltiplas vezes - agrupe todas as ocorrências do mesmo tipo
+2. Para cada tipo de vulnerabilidade, liste TODAS as linhas afetadas em uma única seção
+3. SEMPRE mostre o código real das linhas afetadas, não apenas números de linha
+4. Use o formato exato mostrado acima, incluindo os títulos e estrutura
+5. Organize por TIPO de vulnerabilidade, não por linha individual
+6. Inclua as explicações e detalhes que o CodeQL fornece no JSON"#
     }
 }
