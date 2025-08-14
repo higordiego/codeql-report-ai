@@ -143,8 +143,8 @@ impl ChatGPTClient {
     /// Analisa as falhas do CodeQL com o ChatGPT e retorna relatório Markdown
     pub async fn analyze_codeql_findings(
         &self,
-        findings: &[crate::types::CodeQLResult],
-        code_snippets: &[(String, String)], // (file_path, code_content)
+        _findings: &[crate::types::CodeQLResult],
+        _code_snippets: &[(String, String)], // (file_path, code_content)
         full_file_content: &str,
         original_json: &str,
     ) -> crate::Result<String> {

@@ -1,6 +1,6 @@
 use crate::types::*;
 use colored::*;
-use tracing::{debug, error, info, warn};
+use tracing::{info, warn};
 
 /// Analisador principal que coordena a análise de CodeQL com ChatGPT
 pub struct CodeQLAnalyzer {
@@ -105,110 +105,6 @@ impl CodeQLAnalyzer {
         );
 
         Ok(analysis)
-    }
-
-    /// Encontra arquivos Python relevantes baseado nos resultados do CodeQL
-    async fn find_relevant_files(
-        &self,
-        codeql_analysis: &CodeQLAnalysis,
-    ) -> crate::Result<Vec<std::path::PathBuf>> {
-        info!("Procurando arquivos Python relevantes no projeto");
-
-        println!(
-            "{}",
-            format!(
-                "   📁 Escaneando diretório: {}",
-                self.config.project_root.display()
-            )
-            .bright_white()
-        );
-
-        // Obtém arquivos únicos que contêm falhas
-        let files_with_issues = codeql_analysis.get_files_with_issues();
-
-        // Encontra todos os arquivos Python no projeto
-        let all_python_files = crate::utils::find_python_files(&self.config.project_root)?;
-
-        info!(
-            "Encontrados {} arquivos Python no projeto",
-            all_python_files.len()
-        );
-
-        println!(
-            "{}",
-            format!(
-                "   🔍 Encontrados {} arquivos Python no projeto",
-                all_python_files.len()
-            )
-            .bright_blue()
-        );
-
-        // Filtra apenas arquivos que contêm falhas ou são relevantes
-        let mut relevant_files = Vec::new();
-
-        for file_path in all_python_files {
-            let file_str = file_path.to_string_lossy();
-
-            // Inclui arquivos com falhas
-            if files_with_issues.iter().any(|&f| f == file_str.as_ref()) {
-                relevant_files.push(file_path);
-                continue;
-            }
-
-            // Inclui arquivos principais mesmo sem falhas
-            if let Some(filename) = file_path.file_name() {
-                if filename == "main.py" || filename == "__init__.py" {
-                    relevant_files.push(file_path);
-                }
-            }
-        }
-
-        info!(
-            "Selecionados {} arquivos relevantes para análise",
-            relevant_files.len()
-        );
-
-        println!(
-            "{}",
-            format!(
-                "   🎯 Selecionados {} arquivos para análise",
-                relevant_files.len()
-            )
-            .bright_yellow()
-        );
-
-        Ok(relevant_files)
-    }
-
-    /// Cria chunks de arquivos para análise (apenas linhas específicas reportadas)
-    async fn create_analysis_chunks(
-        &self,
-        files: Vec<std::path::PathBuf>,
-        codeql_results: &[CodeQLResult],
-    ) -> crate::Result<Vec<Chunk>> {
-        info!("Criando chunks direcionados para {} arquivos", files.len());
-
-        // Usa a nova função que cria chunks apenas com as linhas específicas
-        let chunks = crate::utils::create_targeted_chunks(
-            files,
-            codeql_results,
-            2, // 2 linhas de contexto antes e depois
-        )?;
-
-        info!("Criados {} chunks direcionados para análise", chunks.len());
-
-        for (i, chunk) in chunks.iter().enumerate() {
-            debug!(
-                "Chunk direcionado {}: arquivo {}, linhas {}-{}, {} tokens",
-                i + 1,
-                chunk.file_path.display(),
-                chunk.start_line,
-                chunk.end_line,
-                chunk.token_count
-            );
-        }
-
-        Ok(chunks)
     }
 
     /// Extrai o código das linhas apontadas pelo CodeQL
@@ -440,7 +336,7 @@ impl CodeQLAnalyzer {
         }
 
         // Adiciona seção de correções de código sugeridas
-        report.push_str(&format!(
+        report.push_str(
             r#"
 
 ## 🔧 Correções de Código Sugeridas
@@ -487,7 +383,7 @@ def execute_command_safe(command_list):
     except FileNotFoundError:
         return "Erro: Comando não encontrado"
     except Exception as e:
-        return format!("Erro: {{}}", str(e))
+        return format!("Erro: {}", str(e))
 
 def validate_command(command_str):
     # Validação de comandos permitidos
@@ -530,8 +426,8 @@ else:
 
 ---
 
-"#
-        ));
+"#,
+        );
 
         // Adiciona recomendações e plano de ação
         report.push_str(&self.generate_recommendations(codeql_analysis));
