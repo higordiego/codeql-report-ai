@@ -108,7 +108,7 @@ impl CodeQLAnalyzer {
         Ok(analysis)
     }
 
-    /// Extrai o código das linhas apontadas pelo CodeQL
+    /// Extrai o código das linhas apontadas pelo CodeQL com contexto
     async fn extract_code_snippets(
         &self,
         results: &[crate::types::CodeQLResult],
@@ -118,20 +118,36 @@ impl CodeQLAnalyzer {
         for result in results {
             if let Some(line_num) = result.line_number {
                 // Constrói o caminho correto para o arquivo
-                let file_path = if result.file_path.starts_with("./") {
-                    let relative_path = &result.file_path[2..];
+                let file_path = if let Some(relative_path) = result.file_path.strip_prefix("./") {
                     self.config.project_root.join(relative_path)
                 } else {
                     self.config.project_root.join(&result.file_path)
                 };
 
-                // Lê o arquivo e extrai a linha específica
+                // Lê o arquivo e extrai a linha com contexto
                 if let Ok(content) = std::fs::read_to_string(&file_path) {
                     let lines: Vec<&str> = content.lines().collect();
                     let line_idx = line_num as usize;
                     if line_idx > 0 && line_idx <= lines.len() {
-                        let code_line = lines[line_idx - 1].to_string();
-                        snippets.push((result.file_path.clone(), code_line));
+                        // Extrai contexto ao redor da linha problemática (3 linhas antes e depois)
+                        let start_line = if line_idx > 3 { line_idx - 3 } else { 1 };
+                        let end_line = if line_idx + 3 <= lines.len() {
+                            line_idx + 3
+                        } else {
+                            lines.len()
+                        };
+
+                        let mut context_lines = Vec::new();
+                        for i in start_line..=end_line {
+                            let line_content = lines[i - 1];
+                            let line_number = i;
+                            let marker = if i == line_idx { ">>> " } else { "    " };
+                            context_lines
+                                .push(format!("{}{:4}: {}", marker, line_number, line_content));
+                        }
+
+                        let code_snippet = context_lines.join("\n");
+                        snippets.push((result.file_path.clone(), code_snippet));
                     } else {
                         snippets.push((
                             result.file_path.clone(),
@@ -364,96 +380,10 @@ impl CodeQLAnalyzer {
             ));
         }
 
-        // Adiciona seção de correções de código sugeridas
         report.push_str(
             r#"
 
-## 🔧 Correções de Código Sugeridas
 
-### Vulnerabilidade: Command Injection via subprocess
-
-**Problema:** Uso inseguro de subprocess com entrada do usuário
-
-**Código Atual (Vulnerável):**
-```python
-import subprocess
-import sys
-
-def execute_command(user_input):
-    # VULNERÁVEL: Executa comando diretamente com entrada do usuário
-    result = subprocess.run(user_input, shell=True, capture_output=True, text=True)
-    return result.stdout
-
-# Exemplo de uso vulnerável
-command = input("Digite o comando: ")
-output = execute_command(command)
-print(output)
-```
-
-**Código Corrigido (Seguro):**
-```python
-import subprocess
-import sys
-import shlex
-
-def execute_command_safe(command_list):
-    # SEGURO: Usa lista de argumentos em vez de shell=True
-    try:
-        result = subprocess.run(
-            command_list, 
-            shell=False,  # Nunca use shell=True com entrada do usuário
-            capture_output=True, 
-            text=True,
-            timeout=30  # Timeout para evitar execução infinita
-        )
-        return result.stdout
-    except subprocess.TimeoutExpired:
-        return "Erro: Comando excedeu o tempo limite"
-    except FileNotFoundError:
-        return "Erro: Comando não encontrado"
-    except Exception as e:
-        return format!("Erro: {}", str(e))
-
-def validate_command(command_str):
-    # Validação de comandos permitidos
-    allowed_commands = ['ls', 'pwd', 'whoami', 'date']
-    command_parts = shlex.split(command_str)
-    
-    if not command_parts:
-        return None
-    
-    if command_parts[0] not in allowed_commands:
-        return None
-    
-    return command_parts
-
-# Exemplo de uso seguro
-user_input = input("Digite o comando (ls, pwd, whoami, date): ")
-validated_command = validate_command(user_input)
-
-if validated_command:
-    output = execute_command_safe(validated_command)
-    print(output)
-else:
-    print("Comando não permitido ou inválido")
-```
-
-**Explicação das Correções:**
-1. **Remoção de `shell=True`**: Evita interpretação de shell que pode executar comandos maliciosos
-2. **Uso de lista de argumentos**: Passa argumentos como lista em vez de string
-3. **Validação de entrada**: Verifica se o comando está na lista de comandos permitidos
-4. **Timeout**: Adiciona limite de tempo para evitar execução infinita
-5. **Tratamento de erros**: Captura e trata exceções adequadamente
-6. **Parsing seguro**: Usa `shlex.split()` para dividir comandos de forma segura
-
-**Benefícios da Correção:**
-- ✅ Previne injeção de comandos maliciosos
-- ✅ Limita comandos a uma lista segura
-- ✅ Adiciona timeout para segurança
-- ✅ Melhor tratamento de erros
-- ✅ Código mais robusto e seguro
-
----
 
 "#,
         );
