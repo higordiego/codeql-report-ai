@@ -183,7 +183,13 @@ FORMATO OBRIGATÓRIO:
 - Inclua todos os títulos e seções: Resumo Executivo, Estatísticas, Achados Detalhados, Recomendações, Plano de Ação
 - Para cada vulnerabilidade, use o formato: **Vulnerabilidade: [nome]**, **Problema:**, **Severidade:**, **Linhas Afetadas:**, **Código das Linhas:**, **Explicação:**
 - SEMPRE mostre o código real das linhas afetadas, não apenas números de linha
-- Agrupe vulnerabilidades do mesmo tipo em uma única entrada"#,
+- Agrupe vulnerabilidades do mesmo tipo em uma única entrada
+
+RESTRIÇÕES IMPORTANTES:
+- NÃO inclua seções de "Correções de Código Sugeridas" ou "Código Corrigido"
+- MOSTRE APENAS o código original das linhas apontadas pelo CodeQL
+- NÃO forneça sugestões de código corrigido ou alternativo
+- Use EXATAMENTE as linhas de código que o CodeQL identificou como problemáticas"#,
                 original_json, full_file_content
             ),
         };
@@ -244,6 +250,9 @@ REGRAS OBRIGATÓRIAS:
 3. SEMPRE mostre o código real das linhas afetadas, não apenas números de linha
 4. Use o formato exato mostrado acima, incluindo os títulos e estrutura
 5. Organize por TIPO de vulnerabilidade, não por linha individual
-6. Inclua as explicações e detalhes que o CodeQL fornece no JSON"#
+6. Inclua as explicações e detalhes que o CodeQL fornece no JSON
+7. NÃO inclua seções de "Correções de Código Sugeridas" ou "Código Corrigido"
+8. MOSTRE APENAS o código original das linhas apontadas pelo CodeQL, sem sugestões de correção
+9. Use EXATAMENTE as linhas de código que o CodeQL identificou como problemáticas"#
     }
 }
