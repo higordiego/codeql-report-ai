@@ -28,12 +28,6 @@ pub fn generate_report(
         chatgpt_analyses,
     ));
 
-    // Recomendações do ChatGPT
-    report.push_str(&generate_recommendations_section(chatgpt_analyses));
-
-    // Plano de ação
-    report.push_str(&generate_action_plan(chatgpt_analyses));
-
     // Metadados
     report.push_str(&generate_metadata(config));
 
@@ -243,110 +237,6 @@ fn generate_findings_section(
         }
     }
 
-    section
-}
-
-/// Gera seção de recomendações
-fn generate_recommendations_section(chatgpt_analyses: &[ChatGPTAnalysis]) -> String {
-    let mut section = String::new();
-    section.push_str("## 💡 Recomendações\n\n");
-
-    let mut all_recommendations = Vec::new();
-
-    for analysis in chatgpt_analyses {
-        for recommendation in &analysis.recommendations {
-            all_recommendations.push(recommendation);
-        }
-    }
-
-    // Ordena por prioridade
-    all_recommendations.sort_by(|a, b| {
-        let priority_order = |p: &str| match p {
-            "high" => 0,
-            "medium" => 1,
-            "low" => 2,
-            _ => 3,
-        };
-        priority_order(&a.priority).cmp(&priority_order(&b.priority))
-    });
-
-    for (i, recommendation) in all_recommendations.iter().enumerate() {
-        let priority_icon = match recommendation.priority.as_str() {
-            "high" => "🔴",
-            "medium" => "🟡",
-            "low" => "🟢",
-            _ => "⚪",
-        };
-
-        section.push_str(&format!(
-            "### {} {}. {}\n\n",
-            priority_icon,
-            i + 1,
-            recommendation.title
-        ));
-
-        section.push_str(&format!(
-            "**Descrição:** {}\n\n",
-            recommendation.description
-        ));
-        section.push_str(&format!(
-            "**Esforço estimado:** {}\n\n",
-            recommendation.effort
-        ));
-
-        if !recommendation.steps.is_empty() {
-            section.push_str("**Passos de ação:**\n");
-            for item in &recommendation.steps {
-                section.push_str(&format!("- {}\n", item));
-            }
-            section.push('\n');
-        }
-
-        section.push_str("---\n\n");
-    }
-
-    section
-}
-
-/// Gera plano de ação
-fn generate_action_plan(chatgpt_analyses: &[ChatGPTAnalysis]) -> String {
-    let mut section = String::new();
-    section.push_str("## 🎯 Plano de Ação\n\n");
-
-    let mut high_priority = Vec::new();
-    let mut medium_priority = Vec::new();
-    let mut low_priority = Vec::new();
-
-    for analysis in chatgpt_analyses {
-        for recommendation in &analysis.recommendations {
-            match recommendation.priority.as_str() {
-                "high" => high_priority.push(recommendation),
-                "medium" => medium_priority.push(recommendation),
-                "low" => low_priority.push(recommendation),
-                _ => {}
-            }
-        }
-    }
-
-    section.push_str("### 🔴 Prioridade Alta (Imediata)\n\n");
-    for recommendation in high_priority {
-        section.push_str(&format!("- [ ] {}\n", recommendation.title));
-    }
-    section.push('\n');
-
-    section.push_str("### 🟡 Prioridade Média (Próximas 2 semanas)\n\n");
-    for recommendation in medium_priority {
-        section.push_str(&format!("- [ ] {}\n", recommendation.title));
-    }
-    section.push('\n');
-
-    section.push_str("### 🟢 Prioridade Baixa (Próximo mês)\n\n");
-    for recommendation in low_priority {
-        section.push_str(&format!("- [ ] {}\n", recommendation.title));
-    }
-    section.push('\n');
-
-    section.push_str("---\n\n");
     section
 }
 

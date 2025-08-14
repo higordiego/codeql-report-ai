@@ -302,7 +302,6 @@ impl CodeQLAnalyzer {
 **Severidade:** {}
 **Categoria:** Segurança
 **Impacto:** Vulnerabilidade de segurança detectada pelo CodeQL
-**Recomendação:** Revisar e corrigir o código problemático
 
 **Linhas Afetadas:** {}
 
@@ -429,9 +428,6 @@ else:
 "#,
         );
 
-        // Adiciona recomendações e plano de ação
-        report.push_str(&self.generate_recommendations(codeql_analysis));
-
         // Adiciona metadados
         report.push_str("
 
@@ -502,85 +498,6 @@ else:
         }
 
         findings.join("\n")
-    }
-
-    /// Gera recomendações baseadas nos problemas encontrados
-    fn generate_recommendations(&self, codeql_analysis: &CodeQLAnalysis) -> String {
-        let error_count = self.count_severity(codeql_analysis, "error");
-        let warning_count = self.count_severity(codeql_analysis, "warning");
-        let note_count = self.count_severity(codeql_analysis, "note");
-
-        format!(
-            "
-
-## 💡 Recomendações
-
-### 🔴 Prioridade Alta (Imediata)
-{}",
-            if error_count > 0 {
-                format!(
-                    "- Corrigir {} vulnerabilidades críticas de segurança identificadas",
-                    error_count
-                )
-            } else {
-                "Nenhuma ação imediata necessária.".to_string()
-            }
-        ) + &format!(
-            "
-
-### 🟡 Prioridade Média (Próximas 2 semanas)
-{}",
-            if warning_count > 0 {
-                format!(
-                    "- Revisar {} problemas de qualidade de código",
-                    warning_count
-                )
-            } else {
-                "Nenhuma ação necessária.".to_string()
-            }
-        ) + &format!(
-            "
-
-### 🟢 Prioridade Baixa (Próximo mês)
-{}",
-            if note_count > 0 {
-                format!("- Considerar {} melhorias sugeridas", note_count)
-            } else {
-                "Continuar monitorando o código para garantir que futuras adições não introduzam vulnerabilidades.".to_string()
-            }
-        ) + &format!(
-            "
-
-## 🎯 Plano de Ação
-
-### 🔴 Prioridade Alta (Imediata)
-{}",
-            if error_count > 0 {
-                "- [ ] Corrigir vulnerabilidades críticas de segurança".to_string()
-            } else {
-                "- [ ] Nenhuma ação necessária.".to_string()
-            }
-        ) + &format!(
-            "
-
-### 🟡 Prioridade Média (Próximas 2 semanas)
-{}",
-            if warning_count > 0 {
-                "- [ ] Revisar problemas de qualidade de código".to_string()
-            } else {
-                "- [ ] Nenhuma ação necessária.".to_string()
-            }
-        ) + &format!(
-            "
-
-### 🟢 Prioridade Baixa (Próximo mês)
-{}",
-            if note_count > 0 {
-                "- [ ] Implementar melhorias sugeridas".to_string()
-            } else {
-                "- [ ] Revisar futuras adições de código para garantir conformidade com práticas de segurança.".to_string()
-            }
-        )
     }
 
     /// Salva o relatório Markdown no arquivo de saída

@@ -212,68 +212,45 @@ RESTRIÇÕES IMPORTANTES:
 
     /// Obtém o prompt do sistema
     fn get_system_prompt(&self) -> &str {
-        r#"Entendi, você quer um **prompt definitivo**, bem claro e “amigável” para que qualquer LLM sempre gere relatórios **exatamente** nesse formato que você mostrou — com Resumo Executivo, Estatísticas, Achados Detalhados, Recomendações e Plano de Ação.
+        r#"Você é um especialista em segurança de código e análise estática. Sua tarefa é analisar o JSON do CodeQL e gerar um relatório completo de segurança.
 
-Segue a versão reformulada e simplificada para ficar 100% acessível e objetiva:
-
----
-
-**PROMPT DEFINITIVO — RELATÓRIO DE SEGURANÇA (CodeQL)**
-
-Você é um especialista em segurança de código e análise estática.
-Sua tarefa é analisar o **JSON do CodeQL** e gerar um relatório **exatamente** no formato abaixo, em **MARKDOWN**.
-
----
+IMPORTANTE: Você deve retornar um relatório completo formatado em MARKDOWN, seguindo EXATAMENTE este formato:
 
 # Relatório de Segurança - Análise de Código com CodeQL
 
 ## Resumo Executivo
-
-\[Explique de forma clara as vulnerabilidades encontradas, os arquivos afetados e o impacto potencial.]
+[Análise geral baseada no JSON do CodeQL - explique os tipos de vulnerabilidades encontradas e seu impacto]
 
 ## Estatísticas
-
-\[Liste o total de ocorrências agrupadas por tipo de vulnerabilidade.]
-Exemplo:
-
-* Vulnerabilidades de Command Injection via subprocess: 7 ocorrências
+[Baseadas nos dados do JSON - agrupe por tipo de vulnerabilidade, ex: "- Vulnerabilidades de Command Injection via subprocess: X ocorrências"]
 
 ## Achados Detalhados
+[Para cada TIPO de vulnerabilidade encontrado, use este formato exato:]
 
-Para cada tipo de vulnerabilidade, siga este formato:
-
-1. **Vulnerabilidade:** \[nome exato]
-
-   * **Problema:** \[descrição conforme JSON]
-   * **Severidade:** \[nível do JSON]
-   * **Linhas Afetadas:**
-
-     * Linha X: `[código da linha exata]`
-     * Linha Y: `[código da linha exata]`
-     * \[listar todas]
-   * **Código das Linhas:**
-
+1. **Vulnerabilidade: [nome exato da vulnerabilidade]**
+   - **Problema:** [descrição exata do problema conforme o JSON]
+   - **Severidade:** [severidade conforme o JSON]
+   - **Linhas Afetadas:**
+     - Linha X: [descrição da linha]
+     - Linha Y: [descrição da linha]
+     - [continue para todas as linhas afetadas]
+   - **Código das Linhas:**
    ```[linguagem]
-   [código original exato]
+   [código real das linhas afetadas, exatamente como aparece no arquivo]
    ```
+   - **Explicação:** [explicação baseada nas informações do JSON]
 
-   * **Explicação:** \[detalhamento técnico com base no JSON]
-
----
-
-### REGRAS FIXAS:
-
-1. **Agrupar** todas as ocorrências do mesmo tipo de vulnerabilidade em **uma única entrada**.
-2. **Sempre** incluir o código original exatamente como aparece no arquivo.
-3. **Seguir rigorosamente** a estrutura de títulos e subtítulos.
-4. **Sempre** incluir Recomendações e Plano de Ação.
-5. Não usar emojis, cores ou formatação extra além do Markdown básico.
-
----
-
-Se quiser, posso já te devolver **uma versão “blindada”** desse prompt otimizada para LLMs, com instruções reforçadas para impedir que o modelo quebre o formato. Isso garantiria que o relatório venha **sempre igual**, sem variações.
-
-Quer que eu já te prepare essa versão?
-"#
+REGRAS OBRIGATÓRIAS:
+1. NÃO REPITA a mesma vulnerabilidade múltiplas vezes - agrupe todas as ocorrências do mesmo tipo
+2. Para cada tipo de vulnerabilidade, liste TODAS as linhas afetadas em uma única seção
+3. SEMPRE mostre o código real das linhas afetadas, não apenas números de linha
+4. Use o formato exato mostrado acima, incluindo os títulos e estrutura
+5. Organize por TIPO de vulnerabilidade, não por linha individual
+6. Inclua as explicações e detalhes que o CodeQL fornece no JSON
+7. NÃO inclua seções de "Correções de Código Sugeridas" ou "Código Corrigido"
+8. MOSTRE APENAS o código original das linhas apontadas pelo CodeQL, sem sugestões de correção
+9. Use EXATAMENTE as linhas de código que o CodeQL identificou como problemáticas
+10. NÃO inclua seções de "Recomendações" ou "Plano de Ação"
+11. NÃO inclua emojis ou formatação colorida no relatório"#
     }
 }
