@@ -181,7 +181,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.name }}-release
-          path: ${{ matrix.archive_name }}
+          path: |
+            ${{ matrix.archive_name }}
+            release/${{ matrix.name }}/codeql-ai
           
   release:
     name: Create Release
@@ -234,6 +236,8 @@ jobs:
             
             Choose the appropriate binary for your system:
             
+            **Option 1: Download and extract archive**
+            
             **Linux x86_64 (GNU - Ubuntu, Debian, CentOS):**
             ```bash
             tar -xzf codeql-ai-linux-x86_64.tar.gz
@@ -243,6 +247,13 @@ jobs:
             **Linux x86_64 (Musl - Alpine Linux, Docker):**
             ```bash
             tar -xzf codeql-ai-linux-x86_64-musl.tar.gz
+            chmod +x codeql-ai
+            ```
+            
+            **Option 2: Download binary directly**
+            
+            Download the `codeql-ai` binary file directly and make it executable:
+            ```bash
             chmod +x codeql-ai
             ```
             
@@ -280,5 +291,6 @@ jobs:
           files: |
             artifacts/*/codeql-ai-linux-x86_64.tar.gz
             artifacts/*/codeql-ai-linux-x86_64-musl.tar.gz
+            artifacts/*/codeql-ai
           
 
