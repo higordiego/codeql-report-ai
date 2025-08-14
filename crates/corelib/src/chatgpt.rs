@@ -180,16 +180,18 @@ INSTRUÇÕES ESPECÍFICAS:
 
 FORMATO OBRIGATÓRIO:
 - Use EXATAMENTE o formato especificado no prompt do sistema
-- Inclua todos os títulos e seções: Resumo Executivo, Estatísticas, Achados Detalhados, Recomendações, Plano de Ação
+- Inclua apenas os títulos e seções: Resumo Executivo, Estatísticas, Achados Detalhados
 - Para cada vulnerabilidade, use o formato: **Vulnerabilidade: [nome]**, **Problema:**, **Severidade:**, **Linhas Afetadas:**, **Código das Linhas:**, **Explicação:**
 - SEMPRE mostre o código real das linhas afetadas, não apenas números de linha
 - Agrupe vulnerabilidades do mesmo tipo em uma única entrada
 
 RESTRIÇÕES IMPORTANTES:
 - NÃO inclua seções de "Correções de Código Sugeridas" ou "Código Corrigido"
+- NÃO inclua seções de "Recomendações" ou "Plano de Ação"
 - MOSTRE APENAS o código original das linhas apontadas pelo CodeQL
 - NÃO forneça sugestões de código corrigido ou alternativo
-- Use EXATAMENTE as linhas de código que o CodeQL identificou como problemáticas"#,
+- Use EXATAMENTE as linhas de código que o CodeQL identificou como problemáticas
+- NÃO inclua emojis ou formatação colorida no relatório"#,
                 original_json, full_file_content
             ),
         };
@@ -238,12 +240,6 @@ IMPORTANTE: Você deve retornar um relatório completo formatado em MARKDOWN, se
    ```
    - **Explicação:** [explicação baseada nas informações do JSON]
 
-## Recomendações
-[Baseadas nas vulnerabilidades detectadas - liste recomendações específicas]
-
-## Plano de Ação
-[Ações específicas para corrigir os problemas identificados]
-
 REGRAS OBRIGATÓRIAS:
 1. NÃO REPITA a mesma vulnerabilidade múltiplas vezes - agrupe todas as ocorrências do mesmo tipo
 2. Para cada tipo de vulnerabilidade, liste TODAS as linhas afetadas em uma única seção
@@ -253,6 +249,8 @@ REGRAS OBRIGATÓRIAS:
 6. Inclua as explicações e detalhes que o CodeQL fornece no JSON
 7. NÃO inclua seções de "Correções de Código Sugeridas" ou "Código Corrigido"
 8. MOSTRE APENAS o código original das linhas apontadas pelo CodeQL, sem sugestões de correção
-9. Use EXATAMENTE as linhas de código que o CodeQL identificou como problemáticas"#
+9. Use EXATAMENTE as linhas de código que o CodeQL identificou como problemáticas
+10. NÃO inclua seções de "Recomendações" ou "Plano de Ação"
+11. NÃO inclua emojis ou formatação colorida no relatório"#
     }
 }
