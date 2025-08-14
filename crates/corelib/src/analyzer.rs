@@ -155,29 +155,58 @@ impl CodeQLAnalyzer {
         Ok(snippets)
     }
 
-    /// Lê o arquivo completo para fornecer contexto ao ChatGPT
+    /// Lê todos os arquivos únicos para fornecer contexto ao ChatGPT
     async fn read_full_file(
         &self,
         results: &[crate::types::CodeQLResult],
     ) -> crate::Result<String> {
-        // Pega o primeiro arquivo dos resultados (assumindo que todos são do mesmo arquivo)
-        if let Some(first_result) = results.first() {
-            let file_path = if first_result.file_path.starts_with("./") {
-                let relative_path = &first_result.file_path[2..];
+        if results.is_empty() {
+            return Ok("[Nenhum arquivo encontrado nos resultados]".to_string());
+        }
+
+        // Coleta todos os arquivos únicos
+        let mut unique_files = std::collections::HashSet::new();
+        for result in results {
+            unique_files.insert(result.file_path.clone());
+        }
+
+        let mut all_content = String::new();
+        let mut file_count = 0;
+
+        for file_path in unique_files {
+            let full_path = if let Some(relative_path) = file_path.strip_prefix("./") {
                 self.config.project_root.join(relative_path)
             } else {
-                self.config.project_root.join(&first_result.file_path)
+                self.config.project_root.join(&file_path)
             };
 
-            match std::fs::read_to_string(&file_path) {
-                Ok(content) => Ok(content),
-                Err(_) => Ok(format!(
-                    "[Não foi possível ler o arquivo completo: {}]",
-                    file_path.display()
-                )),
+            match std::fs::read_to_string(&full_path) {
+                Ok(content) => {
+                    if file_count > 0 {
+                        all_content.push_str("\n\n");
+                    }
+                    all_content.push_str(&format!("=== ARQUIVO: {} ===\n", file_path));
+                    all_content.push_str(&content);
+                    file_count += 1;
+                }
+                Err(_) => {
+                    if file_count > 0 {
+                        all_content.push_str("\n\n");
+                    }
+                    all_content.push_str(&format!(
+                        "=== ARQUIVO: {} ===\n[Não foi possível ler o arquivo: {}]",
+                        file_path,
+                        full_path.display()
+                    ));
+                    file_count += 1;
+                }
             }
+        }
+
+        if all_content.is_empty() {
+            Ok("[Nenhum arquivo pôde ser lido]".to_string())
         } else {
-            Ok("[Nenhum arquivo encontrado nos resultados]".to_string())
+            Ok(all_content)
         }
     }
 
@@ -429,22 +458,7 @@ else:
 "#,
         );
 
-        // Adiciona metadados
-        report.push_str("
 
-## 📋 Metadados
-
-**Configurações utilizadas:**
-- Modelo: gpt-3.5-turbo (falhou - usando relatório básico)
-- Temperatura: 0.2
-- Rate limit: 30 req/s
-- Timeout: 30s
-
----
-*Relatório gerado automaticamente pelo Code Report v0.1.0*
-
-⚠️ **Nota:** Este relatório foi gerado automaticamente com base nos resultados do CodeQL, pois a análise do ChatGPT não pôde ser concluída devido a problemas de conectividade ou autenticação.
-");
 
         Ok(report)
     }
