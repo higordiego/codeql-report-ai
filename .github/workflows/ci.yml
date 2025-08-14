@@ -60,3 +60,7 @@ jobs:
       - name: Check workspace
         run: |
           cargo check --workspace
+          
+      - name: Execute binary
+        run: |
+          ./target/release/codeql-ai --help
