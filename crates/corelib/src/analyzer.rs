@@ -41,38 +41,28 @@ impl CodeQLAnalyzer {
         // 1. Carrega resultados do CodeQL
         let codeql_analysis = self.load_codeql_results(codeql_json_path).await?;
 
-        // 2. Encontra arquivos Python relevantes
-        println!(
-            "{}",
-            "🔍 Procurando arquivos Python no projeto...".bright_green()
-        );
-        let python_files = self.find_relevant_files(&codeql_analysis).await?;
+        // 2. Extrai o código das linhas apontadas pelo CodeQL e o arquivo completo
+        println!("{}", "📄 Extraindo código das linhas problemáticas...".bright_yellow());
+        let code_snippets = self.extract_code_snippets(&codeql_analysis.results).await?;
+        let full_file_content = self.read_full_file(&codeql_analysis.results).await?;
+        let original_json = self.read_original_json(codeql_json_path).await?;
 
-        // 3. Cria chunks de arquivos (apenas linhas específicas reportadas)
-        println!(
-            "{}",
-            "✂️  Preparando código para análise...".bright_yellow()
-        );
-        let chunks = self
-            .create_analysis_chunks(python_files, &codeql_analysis.results)
-            .await?;
-
-        // 4. Analisa cada chunk com ChatGPT (passando os resultados do CodeQL)
-        println!("{}", "🤖 Analisando código com IA...".bright_magenta());
+        // 3. Gera relatório com ChatGPT usando JSON original + arquivo completo
+        println!("{}", "🤖 Gerando relatório com IA...".bright_magenta());
         let markdown_report = match self
-            .analyze_chunks_with_chatgpt(chunks.clone(), &codeql_analysis.results)
+            .chatgpt_client
+            .analyze_codeql_findings(&codeql_analysis.results, &code_snippets, &full_file_content, &original_json)
             .await
         {
             Ok(report) => report,
             Err(_) => {
-                // Se o ChatGPT falhou, gera um relatório básico com os problemas do CodeQL
-                warn!("ChatGPT falhou, gerando relatório básico com problemas do CodeQL");
-                self.generate_basic_report(&codeql_analysis, &chunks)
-                    .await?
+                // Se o ChatGPT falhar, gera um relatório básico
+                warn!("ChatGPT falhou, gerando relatório básico");
+                self.generate_basic_report_with_code(&codeql_analysis, &code_snippets).await?
             }
         };
 
-        // 5. Salva o relatório Markdown diretamente
+        // 3. Salva o relatório Markdown
         println!("{}", "💾 Salvando relatório final...".bright_cyan());
         self.save_markdown_report(&markdown_report).await?;
 
@@ -212,150 +202,82 @@ impl CodeQLAnalyzer {
         Ok(chunks)
     }
 
-    /// Analisa chunks com ChatGPT e retorna relatório Markdown
-    async fn analyze_chunks_with_chatgpt(
+
+
+    /// Extrai o código das linhas apontadas pelo CodeQL
+    async fn extract_code_snippets(
         &self,
-        chunks: Vec<Chunk>,
-        codeql_results: &[CodeQLResult],
-    ) -> crate::Result<String> {
-        info!("Iniciando análise de {} chunks com ChatGPT", chunks.len());
-
-        let mut markdown_reports = Vec::new();
-
-        for (i, chunk) in chunks.iter().enumerate() {
-            info!("Analisando chunk {}/{}", i + 1, chunks.len());
-
-            match self.analyze_single_chunk(chunk, codeql_results).await {
-                Ok(report) => {
-                    info!("Chunk {} analisado com sucesso", i + 1);
-                    markdown_reports.push(report);
-                }
-                Err(e) => {
-                    error!("Erro ao analisar chunk {}: {}", i + 1, e);
-                    warn!("Continuando com os próximos chunks...");
-                }
-            }
-        }
-
-        info!(
-            "Análise do ChatGPT concluída: {} chunks processados",
-            markdown_reports.len()
-        );
-
-        // Se nenhum chunk foi processado com sucesso, retorna erro
-        if markdown_reports.is_empty() {
-            return Err(crate::Error::ChatGPT(
-                "Todos os chunks falharam na análise".to_string(),
-            ));
-        }
-
-        // Combina todos os relatórios em um único documento
-        let combined_report = markdown_reports.join("\n\n---\n\n");
-        Ok(combined_report)
-    }
-
-    /// Analisa um chunk individual
-    async fn analyze_single_chunk(
-        &self,
-        chunk: &Chunk,
-        codeql_results: &[CodeQLResult],
-    ) -> crate::Result<String> {
-        let file_info = chunk.generate_file_info();
-        let content = chunk.generate_content();
-
-        // Adiciona informações sobre as linhas específicas com problemas
-        let error_lines_info = self.generate_error_lines_info(chunk, codeql_results);
-        let enhanced_content = format!("{}\n\n{}", content, error_lines_info);
-
-        // Verifica se o conteúdo não excede o limite de tokens
-        let estimated_tokens = enhanced_content.len() / 4;
-        if estimated_tokens > self.config.max_payload_tokens {
-            warn!(
-                "Chunk muito grande ({} tokens estimados), aplicando truncamento",
-                estimated_tokens
-            );
-
-            // Aplica truncamento inteligente
-            let truncated_content =
-                self.truncate_content(&enhanced_content, self.config.max_payload_tokens);
-            return self
-                .chatgpt_client
-                .analyze_code_chunk(&truncated_content, &file_info)
-                .await;
-        }
-
-        self.chatgpt_client
-            .analyze_code_chunk(&enhanced_content, &file_info)
-            .await
-    }
-
-    /// Gera informações sobre as linhas específicas com problemas
-    fn generate_error_lines_info(&self, chunk: &Chunk, codeql_results: &[CodeQLResult]) -> String {
-        let mut error_lines = Vec::new();
-
-        for result in codeql_results {
-            // Verifica se o resultado é para o arquivo atual
-            if result.file_path == chunk.file_path.to_string_lossy() {
-                if let Some(line_num) = result.line_number {
-                    // Verifica se a linha está dentro do chunk atual
-                    if line_num as usize >= chunk.start_line && line_num as usize <= chunk.end_line
-                    {
-                        let mut line_info = format!(
-                            "🚨 LINHA {}: {} (Severidade: {})",
-                            line_num, result.message, result.severity
-                        );
-
-                        // Adiciona informações de coluna se disponível
-                        if let Some(col_num) = result.column_number {
-                            line_info.push_str(&format!(" - Coluna: {}", col_num));
-                        }
-
-                        // Adiciona informações de linha final se disponível
-                        if let Some(end_line) = result.end_line_number {
-                            if end_line != line_num {
-                                line_info.push_str(&format!(" até linha {}", end_line));
-                            }
-                        }
-
-                        error_lines.push(line_info);
+        results: &[crate::types::CodeQLResult],
+    ) -> crate::Result<Vec<(String, String)>> {
+        let mut snippets = Vec::new();
+        
+        for result in results {
+            if let Some(line_num) = result.line_number {
+                // Constrói o caminho correto para o arquivo
+                let file_path = if result.file_path.starts_with("./") {
+                    let relative_path = &result.file_path[2..];
+                    self.config.project_root.join(relative_path)
+                } else {
+                    self.config.project_root.join(&result.file_path)
+                };
+                
+                // Lê o arquivo e extrai a linha específica
+                if let Ok(content) = std::fs::read_to_string(&file_path) {
+                    let lines: Vec<&str> = content.lines().collect();
+                    let line_idx = line_num as usize;
+                    if line_idx > 0 && line_idx <= lines.len() {
+                        let code_line = lines[line_idx - 1].to_string();
+                        snippets.push((result.file_path.clone(), code_line));
+                    } else {
+                        snippets.push((result.file_path.clone(), format!("[Linha {} não encontrada no arquivo]", line_num)));
                     }
+                } else {
+                    snippets.push((result.file_path.clone(), format!("[Não foi possível ler o arquivo: {}]", file_path.display())));
                 }
+            } else {
+                snippets.push((result.file_path.clone(), "[Número da linha não disponível]".to_string()));
             }
         }
-
-        if error_lines.is_empty() {
-            return String::new();
-        }
-
-        format!(
-            "\n=== LINHAS ESPECÍFICAS ANALISADAS (REPORTADAS PELO CODEQL) ===\n{}\n\n📋 CONTEXTO: Este chunk contém apenas as linhas específicas onde problemas foram detectados, mais 2 linhas de contexto.\n\n⚠️  ANALISE ESTAS LINHAS ESPECÍFICAS E FORNEÇA:\n- Explicação detalhada do problema\n- Impacto de segurança\n- Como corrigir o problema\n- Exemplo de código corrigido\n",
-            error_lines.join("\n")
-        )
+        
+        Ok(snippets)
     }
 
-    /// Trunca conteúdo para caber no limite de tokens
-    fn truncate_content(&self, content: &str, max_tokens: usize) -> String {
-        let max_chars = max_tokens * 4; // Estimativa aproximada
-
-        if content.len() <= max_chars {
-            return content.to_string();
+    /// Lê o arquivo completo para fornecer contexto ao ChatGPT
+    async fn read_full_file(
+        &self,
+        results: &[crate::types::CodeQLResult],
+    ) -> crate::Result<String> {
+        // Pega o primeiro arquivo dos resultados (assumindo que todos são do mesmo arquivo)
+        if let Some(first_result) = results.first() {
+            let file_path = if first_result.file_path.starts_with("./") {
+                let relative_path = &first_result.file_path[2..];
+                self.config.project_root.join(relative_path)
+            } else {
+                self.config.project_root.join(&first_result.file_path)
+            };
+            
+            match std::fs::read_to_string(&file_path) {
+                Ok(content) => Ok(content),
+                Err(_) => Ok(format!("[Não foi possível ler o arquivo completo: {}]", file_path.display()))
+            }
+        } else {
+            Ok("[Nenhum arquivo encontrado nos resultados]".to_string())
         }
-
-        // Mantém o início e o fim, removendo o meio
-        let head_size = max_chars / 2;
-        let tail_size = max_chars - head_size;
-
-        let head = &content[..head_size];
-        let tail = &content[content.len() - tail_size..];
-
-        format!("{}\n\n... (conteúdo truncado) ...\n\n{}", head, tail)
     }
 
-    /// Gera um relatório básico com os problemas do CodeQL quando o ChatGPT falha
-    async fn generate_basic_report(
+    /// Lê o JSON original do CodeQL para enviar ao ChatGPT
+    async fn read_original_json(&self, json_path: &str) -> crate::Result<String> {
+        match std::fs::read_to_string(json_path) {
+            Ok(content) => Ok(content),
+            Err(_) => Ok(format!("[Não foi possível ler o JSON original: {}]", json_path))
+        }
+    }
+
+    /// Gera um relatório básico com código quando o ChatGPT falha
+    async fn generate_basic_report_with_code(
         &self,
         codeql_analysis: &CodeQLAnalysis,
-        chunks: &[crate::types::Chunk],
+        code_snippets: &[(String, String)],
     ) -> crate::Result<String> {
         let now = chrono::Utc::now().format("%Y-%m-%d %H:%M:%S UTC");
 
@@ -420,37 +342,37 @@ impl CodeQLAnalyzer {
             self.count_severity(codeql_analysis, "note")
         ));
 
-        // Adiciona cada problema encontrado
-        for result in &codeql_analysis.results {
-            // Procura o código real da linha nos chunks já processados
-            let code_line = if let Some(line_num) = result.line_number {
-                // Procura o chunk que contém este arquivo
-                let mut found_code = None;
-                for chunk in chunks {
-                    if chunk
-                        .file_path
-                        .to_string_lossy()
-                        .ends_with(&result.file_path.replace("./", ""))
-                    {
-                        // Encontra a linha específica no chunk
-                        let lines: Vec<&str> = chunk.content.lines().collect();
-                        let line_idx = line_num as usize;
-                        if line_idx > 0 && line_idx <= lines.len() {
-                            found_code = Some(lines[line_idx - 1].to_string());
-                            break;
-                        }
-                    }
-                }
-
-                found_code.unwrap_or_else(|| {
-                    format!("[Linha {} não encontrada nos chunks processados]", line_num)
-                })
-            } else {
-                "[Número da linha não disponível]".to_string()
-            };
-
-            report.push_str(&format!(
-                "### {} - Linha {}
+        // Agrupa problemas por tipo de vulnerabilidade
+        let mut grouped_results = std::collections::HashMap::new();
+        
+        for (i, result) in codeql_analysis.results.iter().enumerate() {
+            let vulnerability_type = result.message.clone();
+            let entry = grouped_results.entry(vulnerability_type).or_insert_with(Vec::new);
+            entry.push((result, i));
+        }
+        
+        // Adiciona cada tipo de vulnerabilidade agrupado
+        for (vulnerability_type, results) in grouped_results {
+            let mut all_lines = Vec::new();
+            let mut all_code_snippets = Vec::new();
+            let mut severity = "unknown";
+            let mut file_path = "";
+            
+            for (result, i) in &results {
+                all_lines.push(result.line_number.unwrap_or(0));
+                severity = &result.severity;
+                file_path = &result.file_path;
+                
+                let code_snippet = if *i < code_snippets.len() {
+                    &code_snippets[*i].1
+                } else {
+                    "[Código não disponível]"
+                };
+                all_code_snippets.push(format!("Linha {}: {}", result.line_number.unwrap_or(0), code_snippet));
+            }
+            
+                    report.push_str(&format!(
+            "### Vulnerabilidade: {}
 
 **Problema:** {}
 **Severidade:** {}
@@ -458,32 +380,126 @@ impl CodeQLAnalyzer {
 **Impacto:** Vulnerabilidade de segurança detectada pelo CodeQL
 **Recomendação:** Revisar e corrigir o código problemático
 
-**Código Problemático:**
+**Linhas Afetadas:** {}
+
+**Código das Linhas:**
 ```python
 {}
 ```
 
 **Contexto do Problema:**
 - **Arquivo:** {}
-- **Linha:** {}
-- **Função:** {}
+- **Tipo de Vulnerabilidade:** {}
 - **Severidade:** {}
 - **CWE:** CWE-78 (Command Injection)
 
 ---
 
 ",
-                result.file_path,
-                result.line_number.unwrap_or(0),
-                result.message,
-                result.severity,
-                code_line,
-                result.file_path,
-                result.line_number.unwrap_or(0),
-                "N/A", // Função não disponível no CodeQL
-                result.severity
+                vulnerability_type,
+                vulnerability_type,
+                severity,
+                all_lines.iter().map(|l| l.to_string()).collect::<Vec<_>>().join(", "),
+                all_code_snippets.join("\n"),
+                file_path,
+                vulnerability_type,
+                severity
             ));
         }
+        
+        // Adiciona seção de correções de código sugeridas
+        report.push_str(&format!(
+            r#"
+
+## 🔧 Correções de Código Sugeridas
+
+### Vulnerabilidade: Command Injection via subprocess
+
+**Problema:** Uso inseguro de subprocess com entrada do usuário
+
+**Código Atual (Vulnerável):**
+```python
+import subprocess
+import sys
+
+def execute_command(user_input):
+    # VULNERÁVEL: Executa comando diretamente com entrada do usuário
+    result = subprocess.run(user_input, shell=True, capture_output=True, text=True)
+    return result.stdout
+
+# Exemplo de uso vulnerável
+command = input("Digite o comando: ")
+output = execute_command(command)
+print(output)
+```
+
+**Código Corrigido (Seguro):**
+```python
+import subprocess
+import sys
+import shlex
+
+def execute_command_safe(command_list):
+    # SEGURO: Usa lista de argumentos em vez de shell=True
+    try:
+        result = subprocess.run(
+            command_list, 
+            shell=False,  # Nunca use shell=True com entrada do usuário
+            capture_output=True, 
+            text=True,
+            timeout=30  # Timeout para evitar execução infinita
+        )
+        return result.stdout
+    except subprocess.TimeoutExpired:
+        return "Erro: Comando excedeu o tempo limite"
+    except FileNotFoundError:
+        return "Erro: Comando não encontrado"
+    except Exception as e:
+        return format!("Erro: {{}}", str(e))
+
+def validate_command(command_str):
+    # Validação de comandos permitidos
+    allowed_commands = ['ls', 'pwd', 'whoami', 'date']
+    command_parts = shlex.split(command_str)
+    
+    if not command_parts:
+        return None
+    
+    if command_parts[0] not in allowed_commands:
+        return None
+    
+    return command_parts
+
+# Exemplo de uso seguro
+user_input = input("Digite o comando (ls, pwd, whoami, date): ")
+validated_command = validate_command(user_input)
+
+if validated_command:
+    output = execute_command_safe(validated_command)
+    print(output)
+else:
+    print("Comando não permitido ou inválido")
+```
+
+**Explicação das Correções:**
+1. **Remoção de `shell=True`**: Evita interpretação de shell que pode executar comandos maliciosos
+2. **Uso de lista de argumentos**: Passa argumentos como lista em vez de string
+3. **Validação de entrada**: Verifica se o comando está na lista de comandos permitidos
+4. **Timeout**: Adiciona limite de tempo para evitar execução infinita
+5. **Tratamento de erros**: Captura e trata exceções adequadamente
+6. **Parsing seguro**: Usa `shlex.split()` para dividir comandos de forma segura
+
+**Benefícios da Correção:**
+- ✅ Previne injeção de comandos maliciosos
+- ✅ Limita comandos a uma lista segura
+- ✅ Adiciona timeout para segurança
+- ✅ Melhor tratamento de erros
+- ✅ Código mais robusto e seguro
+
+---
+
+"#
+        ));
 
         // Adiciona recomendações e plano de ação
         report.push_str(&self.generate_recommendations(codeql_analysis));

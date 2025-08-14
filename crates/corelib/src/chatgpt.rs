@@ -140,11 +140,13 @@ impl ChatGPTClient {
         Ok(chat_response)
     }
 
-    /// Analisa um chunk de código com o ChatGPT e retorna relatório Markdown
-    pub async fn analyze_code_chunk(
+    /// Analisa as falhas do CodeQL com o ChatGPT e retorna relatório Markdown
+    pub async fn analyze_codeql_findings(
         &self,
-        chunk_content: &str,
-        file_info: &str,
+        findings: &[crate::types::CodeQLResult],
+        code_snippets: &[(String, String)], // (file_path, code_content)
+        full_file_content: &str,
+        original_json: &str,
     ) -> crate::Result<String> {
         let system_message = ChatMessage {
             role: "system".to_string(),
@@ -154,8 +156,35 @@ impl ChatGPTClient {
         let user_message = ChatMessage {
             role: "user".to_string(),
             content: format!(
-                "Analise o seguinte código e forneça um relatório completo em Markdown:\n\n{}\n\n{}",
-                file_info, chunk_content
+                r#"Analise o seguinte JSON do CodeQL e o arquivo de código para gerar um relatório completo de segurança.
+
+JSON ORIGINAL DO CODEQL:
+```json
+{}
+```
+
+ARQUIVO DE CÓDIGO ANALISADO:
+```python
+{}
+```
+
+INSTRUÇÕES DE ORGANIZAÇÃO:
+1. Analise o JSON do CodeQL para identificar os TIPOS de vulnerabilidades
+2. AGRUPE vulnerabilidades do mesmo tipo - NÃO repita a mesma falha múltiplas vezes
+3. Para cada tipo de vulnerabilidade, liste TODAS as linhas afetadas em uma única seção
+4. Se há 7 falhas da mesma vulnerabilidade, mostre apenas 1 entrada com todas as 7 linhas
+5. Use as informações do JSON (mensagens, severidade, localização) para explicar cada problema
+6. Inclua as explicações e detalhes que o CodeQL fornece
+7. Gere um relatório bem estruturado e organizado em Markdown
+8. OBRIGATÓRIO: Para cada linha afetada, SEMPRE mostre o código real da linguagem (Python, JavaScript, etc.)
+9. Use o código real do arquivo para mostrar as linhas problemáticas
+10. Inclua recomendações baseadas nas informações do CodeQL
+
+EXEMPLO DE ORGANIZAÇÃO:
+- Se há 7 falhas de "Command Injection via subprocess", mostre apenas 1 seção com todas as 7 linhas
+- Não crie 7 seções separadas para a mesma vulnerabilidade
+- SEMPRE mostre o código real das linhas afetadas, não apenas números de linha"#,
+                original_json, full_file_content
             ),
         };
 
@@ -175,125 +204,6 @@ impl ChatGPTClient {
 
     /// Obtém o prompt do sistema
     fn get_system_prompt(&self) -> &str {
-        r#"Você é um especialista em segurança de código e análise estática. 
-Sua tarefa é analisar código Python e identificar vulnerabilidades de segurança, 
-problemas de qualidade e oportunidades de melhoria.
-
-IMPORTANTE: Você deve retornar um relatório completo formatado em MARKDOWN, não JSON.
-
-O relatório deve incluir:
-
-# Relatório de Análise de Segurança - CodeQL + ChatGPT
-
-**Data:** [Data atual]  
-**Versão:** 0.1.0  
-**Gerado por:** Code Report
-
----
-
-## 📊 Resumo Executivo
-
-### Estatísticas Gerais
-- **Total de achados:** [número]
-- **Arquivos com problemas:** [número]
-- **Score de risco médio:** [0.0-1.0]
-
-### Distribuição por Severidade
-- 🔴 **Alta:** [número] problemas
-- 🟡 **Média:** [número] problemas  
-- 🟢 **Baixa:** [número] problemas
-
-### Principais Descobertas
-[Lista dos principais problemas encontrados]
-
----
-
-## 📈 Estatísticas do CodeQL
-
-- **Total de resultados:** [número]
-- **Arquivos com problemas:** [número]
-
-### Distribuição por Severidade
-- 🔴 **Alta:** [número] problemas
-- 🟡 **Média:** [número] problemas
-- 🟢 **Baixa:** [número] problemas
-
----
-
-## 🔍 Achados Detalhados
-
-### [Nome do Arquivo] - Linha [X]
-
-**Problema:** [Descrição do problema]
-**Severidade:** [Alta/Média/Baixa]
-**Categoria:** [Segurança/Qualidade/Performance]
-**Impacto:** [Descrição do impacto]
-**Recomendação:** [Como corrigir]
-
-**Código Problemático:**
-```python
-[linha específica do código com problema]
-```
-
-**Código Corrigido:**
-```python
-[código corrigido com explicação]
-```
-
-**Contexto do Problema:**
-- **Arquivo:** [nome do arquivo]
-- **Linha:** [número da linha]
-- **Função:** [nome da função se aplicável]
-- **Severidade:** [Alta/Média/Baixa]
-- **CWE:** [CWE-ID se aplicável]
-
----
-
-## 💡 Recomendações
-
-### 🔴 Prioridade Alta (Imediata)
-[Lista de recomendações críticas]
-
-### 🟡 Prioridade Média (Próximas 2 semanas)
-[Lista de recomendações importantes]
-
-### 🟢 Prioridade Baixa (Próximo mês)
-[Lista de melhorias gerais]
-
----
-
-## 🎯 Plano de Ação
-
-### 🔴 Prioridade Alta (Imediata)
-- [ ] [Ação específica]
-- [ ] [Ação específica]
-
-### 🟡 Prioridade Média (Próximas 2 semanas)
-- [ ] [Ação específica]
-- [ ] [Ação específica]
-
-### 🟢 Prioridade Baixa (Próximo mês)
-- [ ] [Ação específica]
-- [ ] [Ação específica]
-
----
-
-## 📋 Metadados
-
-**Configurações utilizadas:**
-- Modelo: gpt-3.5-turbo
-- Temperatura: 0.2
-- Rate limit: 30 req/s
-- Timeout: 30s
-
----
-*Relatório gerado automaticamente pelo Code Report v0.1.0*
-
-Seja objetivo, técnico e acionável. Priorize segurança e qualidade. Use emojis e formatação Markdown para melhor legibilidade."
-  ],
-  "risk_score": 0.75
-}
-
-Seja objetivo, técnico e acionável. Priorize segurança e qualidade."#
+        "Você é um especialista em segurança de código e análise estática. Sua tarefa é analisar o JSON do CodeQL e gerar um relatório completo de segurança. IMPORTANTE: Você deve retornar um relatório completo formatado em MARKDOWN, não JSON. REGRAS DE ORGANIZAÇÃO: 1. NÃO REPITA a mesma vulnerabilidade múltiplas vezes. Se há várias ocorrências da mesma falha, agrupe-as em uma única entrada. 2. Para cada tipo de vulnerabilidade, liste TODAS as linhas afetadas em uma única seção. 3. Se há 7 falhas da mesma vulnerabilidade, mostre apenas 1 entrada com todas as 7 linhas. 4. Organize por TIPO de vulnerabilidade, não por linha individual. 5. OBRIGATÓRIO: Para cada linha afetada, SEMPRE mostre o código real da linguagem (Python, JavaScript, etc.) O relatório deve incluir: # Relatório de Segurança - Análise de Código com CodeQL ## Resumo Executivo [Análise geral baseada no JSON do CodeQL] ## Estatísticas [Baseadas nos dados do JSON - agrupe por tipo de vulnerabilidade] ## Achados Detalhados [Para cada TIPO de vulnerabilidade encontrado, inclua:] 1. **Vulnerabilidade: [tipo]** - **Problema:** [descrição do JSON] - **Severidade:** [do JSON] - **Linhas Afetadas:** [lista de todas as linhas] - **Código das Linhas:** ```[linguagem] [código real das linhas] ``` - **Explicação:** [baseada nas informações do JSON] ## Recomendações [Baseadas nas vulnerabilidades detectadas] ## Plano de Ação [Ações específicas para corrigir os problemas] REGRA IMPORTANTE: Agrupe vulnerabilidades do mesmo tipo, não repita a mesma falha múltiplas vezes, e SEMPRE mostre o código real das linhas afetadas."
     }
 }
