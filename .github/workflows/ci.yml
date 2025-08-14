@@ -16,7 +16,7 @@ jobs:
     permissions:
       contents: read
     
-    steps:git 
+    steps:
       - name: Checkout code
         uses: actions/checkout@v4
         

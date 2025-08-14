@@ -18,7 +18,7 @@ jobs:
       packages: write
     strategy:
       matrix:
-        target: [x86_64-unknown-linux-gnu, x86_64-unknown-linux-musl, aarch64-unknown-linux-gnu, aarch64-unknown-linux-musl]
+        target: [x86_64-unknown-linux-gnu, x86_64-unknown-linux-musl]
         include:
           - target: x86_64-unknown-linux-gnu
             name: linux-x86_64
@@ -26,12 +26,6 @@ jobs:
           - target: x86_64-unknown-linux-musl
             name: linux-x86_64-musl
             archive_name: codeql-ai-linux-x86_64-musl.tar.gz
-          - target: aarch64-unknown-linux-gnu
-            name: linux-aarch64
-            archive_name: codeql-ai-linux-aarch64.tar.gz
-          - target: aarch64-unknown-linux-musl
-            name: linux-aarch64-musl
-            archive_name: codeql-ai-linux-aarch64-musl.tar.gz
     
     steps:
       - name: Checkout code
@@ -46,8 +40,16 @@ jobs:
           
       - name: Install target dependencies
         run: |
+          sudo apt-get update
+          
+          # Install basic build tools
+          sudo apt-get install -y build-essential pkg-config
+          
+          # Install OpenSSL development libraries
+          sudo apt-get install -y libssl-dev
+          
+          # Install musl tools for musl targets
           if [[ "${{ matrix.target }}" == *"musl"* ]]; then
-            sudo apt-get update
             sudo apt-get install -y musl-tools
           fi
           
@@ -63,6 +65,10 @@ jobs:
             ${{ runner.os }}-cargo-${{ matrix.target }}-
             
       - name: Build release
+        env:
+          OPENSSL_DIR: /usr
+          OPENSSL_LIB_DIR: /usr/lib
+          OPENSSL_INCLUDE_DIR: /usr/include
         run: |
           cargo build --release --target ${{ matrix.target }}
           
@@ -171,33 +177,21 @@ jobs:
             - AI-powered vulnerability detection
             - Comprehensive Markdown reports
             - Clean and intuitive CLI interface
-            - Multi-platform Linux binaries (x86_64, aarch64, musl)
+            - Multi-platform Linux binaries (x86_64, musl)
             
             ### 📦 Installation
             
             Choose the appropriate binary for your system:
             
-            **Linux x86_64 (GNU):**
+            **Linux x86_64 (GNU - Ubuntu, Debian, CentOS):**
             ```bash
             tar -xzf codeql-ai-linux-x86_64.tar.gz
             chmod +x codeql-ai
             ```
             
-            **Linux x86_64 (Musl - Alpine):**
+            **Linux x86_64 (Musl - Alpine Linux, Docker):**
             ```bash
             tar -xzf codeql-ai-linux-x86_64-musl.tar.gz
-            chmod +x codeql-ai
-            ```
-            
-            **Linux ARM64 (GNU):**
-            ```bash
-            tar -xzf codeql-ai-linux-aarch64.tar.gz
-            chmod +x codeql-ai
-            ```
-            
-            **Linux ARM64 (Musl - Alpine):**
-            ```bash
-            tar -xzf codeql-ai-linux-aarch64-musl.tar.gz
             chmod +x codeql-ai
             ```
             
@@ -218,11 +212,11 @@ jobs:
             - 📊 **Detailed Reports**: Markdown format
             - 🛡️ **Security Focus**: Vulnerability detection
             - 🎨 **Professional UI**: Colored terminal output
-            - 🐧 **Multi-platform**: Linux x86_64, ARM64, Musl support
+            - 🐧 **Multi-platform**: Linux x86_64, Musl support
             
             ### 🔧 Requirements
             
-            - Linux (x86_64 or ARM64)
+            - Linux x86_64
             - GNU libc or Musl libc
             - OpenAI API key (optional, uses demo key for testing)
             
@@ -235,7 +229,5 @@ jobs:
           files: |
             artifacts/*/codeql-ai-linux-x86_64.tar.gz
             artifacts/*/codeql-ai-linux-x86_64-musl.tar.gz
-            artifacts/*/codeql-ai-linux-aarch64.tar.gz
-            artifacts/*/codeql-ai-linux-aarch64-musl.tar.gz
           
 
