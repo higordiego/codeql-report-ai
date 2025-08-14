@@ -25,7 +25,7 @@ jobs:
           override: true
           
       - name: Cache dependencies
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: |
             ~/.cargo/registry
@@ -94,7 +94,7 @@ jobs:
           tar -czf codeql-ai-linux-x86_64.tar.gz *
           
       - name: Upload release artifacts
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: codeql-ai-linux-release
           path: release/codeql-ai-linux-x86_64.tar.gz
@@ -107,7 +107,7 @@ jobs:
     
     steps:
       - name: Download artifacts
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: codeql-ai-linux-release
           path: release
@@ -119,12 +119,13 @@ jobs:
           echo "version=$VERSION" >> $GITHUB_OUTPUT
           
       - name: Create Release
-        uses: actions/create-release@v1
+        id: create_release
+        uses: softprops/action-gh-release@v2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           tag_name: ${{ steps.version.outputs.version }}
-          release_name: Code Report ${{ steps.version.outputs.version }}
+          name: Code Report ${{ steps.version.outputs.version }}
           body: |
             ## Code Report ${{ steps.version.outputs.version }}
             
@@ -174,13 +175,6 @@ jobs:
             
           draft: false
           prerelease: false
+          files: release/codeql-ai-linux-x86_64.tar.gz
           
-      - name: Upload Release Asset
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: release/codeql-ai-linux-x86_64.tar.gz
-          asset_name: codeql-ai-linux-x86_64.tar.gz
-          asset_content_type: application/gzip
+
