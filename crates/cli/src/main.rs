@@ -3,7 +3,6 @@ use codeql_corelib::{CodeQLAnalyzer, Config, Result};
 use colored::*;
 use std::path::PathBuf;
 use tracing::{info, Level};
-use tracing_subscriber;
 
 fn print_banner(show_quick_start: bool) {
     // Espaços no top para melhor visualização das cores

@@ -461,8 +461,7 @@ impl CodeQLAnalyzer {
         report.push_str(&self.generate_recommendations(codeql_analysis));
 
         // Adiciona metadados
-        report.push_str(&format!(
-            "
+        report.push_str("
 
 ## 📋 Metadados
 
@@ -476,8 +475,7 @@ impl CodeQLAnalyzer {
 *Relatório gerado automaticamente pelo Code Report v0.1.0*
 
 ⚠️ **Nota:** Este relatório foi gerado automaticamente com base nos resultados do CodeQL, pois a análise do ChatGPT não pôde ser concluída devido a problemas de conectividade ou autenticação.
-"
-        ));
+");
 
         Ok(report)
     }
@@ -586,7 +584,7 @@ impl CodeQLAnalyzer {
 ### 🔴 Prioridade Alta (Imediata)
 {}",
             if error_count > 0 {
-                format!("- [ ] Corrigir vulnerabilidades críticas de segurança")
+                "- [ ] Corrigir vulnerabilidades críticas de segurança".to_string()
             } else {
                 "- [ ] Nenhuma ação necessária.".to_string()
             }
@@ -596,7 +594,7 @@ impl CodeQLAnalyzer {
 ### 🟡 Prioridade Média (Próximas 2 semanas)
 {}",
             if warning_count > 0 {
-                format!("- [ ] Revisar problemas de qualidade de código")
+                "- [ ] Revisar problemas de qualidade de código".to_string()
             } else {
                 "- [ ] Nenhuma ação necessária.".to_string()
             }
@@ -606,7 +604,7 @@ impl CodeQLAnalyzer {
 ### 🟢 Prioridade Baixa (Próximo mês)
 {}",
             if note_count > 0 {
-                format!("- [ ] Implementar melhorias sugeridas")
+                "- [ ] Implementar melhorias sugeridas".to_string()
             } else {
                 "- [ ] Revisar futuras adições de código para garantir conformidade com práticas de segurança.".to_string()
             }
@@ -622,88 +620,16 @@ impl CodeQLAnalyzer {
 
         // Cria diretório pai se não existir
         if let Some(parent) = self.config.output_file.parent() {
-            std::fs::create_dir_all(parent).map_err(|e| crate::Error::Io(e))?;
+            std::fs::create_dir_all(parent).map_err(crate::Error::Io)?;
         }
 
         // Salva o relatório
-        std::fs::write(&self.config.output_file, markdown_content)
-            .map_err(|e| crate::Error::Io(e))?;
+        std::fs::write(&self.config.output_file, markdown_content).map_err(crate::Error::Io)?;
 
         info!(
             "Relatório Markdown salvo com sucesso em: {:?}",
             self.config.output_file
         );
         Ok(())
-    }
-
-    /// Gera o relatório final
-    async fn generate_final_report(
-        &self,
-        codeql_analysis: &CodeQLAnalysis,
-        chatgpt_analyses: &[ChatGPTAnalysis],
-    ) -> crate::Result<()> {
-        info!("Gerando relatório final em: {:?}", self.config.output_file);
-
-        let report_content =
-            crate::markdown::generate_report(codeql_analysis, chatgpt_analyses, &self.config);
-
-        // Cria diretório pai se não existir
-        if let Some(parent) = self.config.output_file.parent() {
-            std::fs::create_dir_all(parent).map_err(|e| crate::Error::Io(e))?;
-        }
-
-        // Salva o relatório
-        std::fs::write(&self.config.output_file, report_content)
-            .map_err(|e| crate::Error::Io(e))?;
-
-        info!(
-            "Relatório salvo com sucesso em: {:?}",
-            self.config.output_file
-        );
-
-        // Exibe estatísticas finais
-        self.display_final_statistics(codeql_analysis, chatgpt_analyses);
-
-        Ok(())
-    }
-
-    /// Exibe estatísticas finais
-    fn display_final_statistics(
-        &self,
-        codeql_analysis: &CodeQLAnalysis,
-        chatgpt_analyses: &[ChatGPTAnalysis],
-    ) {
-        let total_findings = codeql_analysis.statistics.total_results;
-        let files_with_issues = codeql_analysis.statistics.files_with_issues;
-
-        let mut total_chatgpt_findings = 0;
-        let mut high_severity = 0;
-        let mut medium_severity = 0;
-        let mut low_severity = 0;
-
-        for analysis in chatgpt_analyses {
-            total_chatgpt_findings += analysis.findings.len();
-
-            for finding in &analysis.findings {
-                match finding.severity.as_str() {
-                    "high" => high_severity += 1,
-                    "medium" => medium_severity += 1,
-                    "low" => low_severity += 1,
-                    _ => {}
-                }
-            }
-        }
-
-        info!("=== ESTATÍSTICAS FINAIS ===");
-        info!(
-            "📊 CodeQL: {} achados em {} arquivos",
-            total_findings, files_with_issues
-        );
-        info!("🤖 ChatGPT: {} achados detalhados", total_chatgpt_findings);
-        info!("🔴 Alta severidade: {}", high_severity);
-        info!("🟡 Média severidade: {}", medium_severity);
-        info!("🟢 Baixa severidade: {}", low_severity);
-        info!("📄 Relatório salvo em: {:?}", self.config.output_file);
-        info!("==========================");
     }
 }

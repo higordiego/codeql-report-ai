@@ -14,7 +14,7 @@ pub fn calculate_hash(content: &str) -> String {
 
 /// Lê um arquivo de forma segura, limitando o tamanho
 pub fn read_file_safe(path: &Path, max_bytes: usize) -> crate::Result<String> {
-    let content = std::fs::read_to_string(path).map_err(|e| crate::Error::Io(e))?;
+    let content = std::fs::read_to_string(path).map_err(crate::Error::Io)?;
 
     if content.len() > max_bytes {
         return Err(crate::Error::Config(format!(
@@ -271,7 +271,7 @@ pub fn create_targeted_chunks(
     for result in codeql_results {
         file_results
             .entry(result.file_path.clone())
-            .or_insert_with(Vec::new)
+            .or_default()
             .push(result);
     }
 
@@ -290,7 +290,7 @@ pub fn create_targeted_chunks(
             file_str,
             file_name
         );
-        for (sarif_path, _) in &file_results {
+        for sarif_path in file_results.keys() {
             tracing::debug!("  com caminho SARIF: '{}'", sarif_path);
         }
 

@@ -105,8 +105,8 @@ pub struct ChunkFile {
     pub total_tokens: usize,
 }
 
-impl CodeQLAnalysis {
-    pub fn new() -> Self {
+impl Default for CodeQLAnalysis {
+    fn default() -> Self {
         Self {
             results: Vec::new(),
             files: Vec::new(),
@@ -123,6 +123,12 @@ impl CodeQLAnalysis {
                 project_name: None,
             },
         }
+    }
+}
+
+impl CodeQLAnalysis {
+    pub fn new() -> Self {
+        Self::default()
     }
 
     pub fn update_statistics(&mut self) {
@@ -179,7 +185,7 @@ impl CodeQLAnalysis {
     }
 
     pub fn from_json_file(path: &str) -> crate::Result<Self> {
-        let content = std::fs::read_to_string(path).map_err(|e| crate::Error::Io(e))?;
+        let content = std::fs::read_to_string(path).map_err(crate::Error::Io)?;
 
         Self::from_json(&content)
     }

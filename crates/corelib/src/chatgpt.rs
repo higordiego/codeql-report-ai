@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 use tokio::time::{sleep, Duration};
-use tracing::{debug, error, info, warn};
+use tracing::{debug, error, info};
 
 /// Estrutura para uma mensagem do ChatGPT
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -45,8 +45,6 @@ pub struct Usage {
     pub total_tokens: u32,
 }
 
-use crate::types::*;
-
 /// Cliente para integração com ChatGPT
 pub struct ChatGPTClient {
     client: reqwest::Client,
@@ -60,7 +58,7 @@ impl ChatGPTClient {
         let client = reqwest::Client::builder()
             .timeout(Duration::from_secs(config.timeout_seconds))
             .build()
-            .map_err(|e| crate::Error::Http(e))?;
+            .map_err(crate::Error::Http)?;
 
         Ok(Self {
             client,
@@ -297,44 +295,5 @@ Seja objetivo, técnico e acionável. Priorize segurança e qualidade. Use emoji
 }
 
 Seja objetivo, técnico e acionável. Priorize segurança e qualidade."#
-    }
-
-    /// Tenta extrair análise JSON da resposta
-    fn parse_analysis_from_response(&self, content: &str) -> crate::Result<ChatGPTAnalysis> {
-        // Procura por blocos JSON na resposta
-        if let Some(json_start) = content.find('{') {
-            if let Some(json_end) = content.rfind('}') {
-                let json_str = &content[json_start..=json_end];
-
-                match serde_json::from_str::<ChatGPTAnalysis>(json_str) {
-                    Ok(analysis) => return Ok(analysis),
-                    Err(e) => {
-                        debug!("Erro ao parsear JSON: {}", e);
-                    }
-                }
-            }
-        }
-
-        Err(crate::Error::InvalidFormat(
-            "JSON não encontrado na resposta".to_string(),
-        ))
-    }
-
-    /// Cria uma análise básica quando não consegue extrair JSON
-    fn create_basic_analysis(&self, content: &str) -> ChatGPTAnalysis {
-        ChatGPTAnalysis {
-            findings: vec![],
-            summary: content.to_string(),
-            recommendations: vec![Recommendation {
-                priority: "medium".to_string(),
-                title: "Análise manual necessária".to_string(),
-                description: "Não foi possível extrair análise estruturada da resposta do ChatGPT"
-                    .to_string(),
-                effort: "1-2 horas".to_string(),
-                impact: "Médio".to_string(),
-                steps: vec!["Revisar manualmente o código".to_string()],
-            }],
-            confidence_score: 0.5,
-        }
     }
 }

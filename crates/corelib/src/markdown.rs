@@ -68,13 +68,13 @@ fn generate_executive_summary(
     let mut severity_counts = HashMap::new();
     for analysis in chatgpt_analyses {
         for finding in &analysis.findings {
-            *severity_counts.entry(&finding.severity).or_insert(0) += 1;
+            *severity_counts.entry(finding.severity.clone()).or_insert(0) += 1;
         }
     }
 
-    let high_severity = severity_counts.get(&"high".to_string()).unwrap_or(&0);
-    let medium_severity = severity_counts.get(&"medium".to_string()).unwrap_or(&0);
-    let low_severity = severity_counts.get(&"low".to_string()).unwrap_or(&0);
+    let high_severity = severity_counts.get("high").unwrap_or(&0);
+    let medium_severity = severity_counts.get("medium").unwrap_or(&0);
+    let low_severity = severity_counts.get("low").unwrap_or(&0);
 
     let avg_risk_score: f32 = chatgpt_analyses
         .iter()
@@ -187,7 +187,7 @@ fn generate_codeql_statistics(stats: &AnalysisStatistics) -> String {
         "- 🟢 **Baixa:** {} problemas\n",
         stats.low_severity_count
     ));
-    section.push_str("\n");
+    section.push('\n');
 
     section.push_str("---\n\n");
     section
@@ -299,7 +299,7 @@ fn generate_recommendations_section(chatgpt_analyses: &[ChatGPTAnalysis]) -> Str
             for item in &recommendation.steps {
                 section.push_str(&format!("- {}\n", item));
             }
-            section.push_str("\n");
+            section.push('\n');
         }
 
         section.push_str("---\n\n");
@@ -332,19 +332,19 @@ fn generate_action_plan(chatgpt_analyses: &[ChatGPTAnalysis]) -> String {
     for recommendation in high_priority {
         section.push_str(&format!("- [ ] {}\n", recommendation.title));
     }
-    section.push_str("\n");
+    section.push('\n');
 
     section.push_str("### 🟡 Prioridade Média (Próximas 2 semanas)\n\n");
     for recommendation in medium_priority {
         section.push_str(&format!("- [ ] {}\n", recommendation.title));
     }
-    section.push_str("\n");
+    section.push('\n');
 
     section.push_str("### 🟢 Prioridade Baixa (Próximo mês)\n\n");
     for recommendation in low_priority {
         section.push_str(&format!("- [ ] {}\n", recommendation.title));
     }
-    section.push_str("\n");
+    section.push('\n');
 
     section.push_str("---\n\n");
     section
