@@ -314,6 +314,16 @@ pub fn create_targeted_chunks(
             let content = read_file_safe(&file_path, 350000)?;
             let lines: Vec<&str> = content.lines().collect();
 
+            // Debug: mostra o conteúdo do arquivo
+            tracing::debug!(
+                "Conteúdo do arquivo {} ({} linhas):",
+                file_path.display(),
+                lines.len()
+            );
+            for (i, line) in lines.iter().enumerate() {
+                tracing::debug!("  Linha {}: {}", i + 1, line);
+            }
+
             // Coleta todas as linhas que precisam ser incluídas
             let mut target_lines = std::collections::HashSet::new();
 

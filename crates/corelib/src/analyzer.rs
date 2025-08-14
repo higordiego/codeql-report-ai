@@ -60,14 +60,15 @@ impl CodeQLAnalyzer {
         // 4. Analisa cada chunk com ChatGPT (passando os resultados do CodeQL)
         println!("{}", "🤖 Analisando código com IA...".bright_magenta());
         let markdown_report = match self
-            .analyze_chunks_with_chatgpt(chunks, &codeql_analysis.results)
+            .analyze_chunks_with_chatgpt(chunks.clone(), &codeql_analysis.results)
             .await
         {
             Ok(report) => report,
             Err(_) => {
-                // Se o ChatGPT falhar, gera um relatório básico com os problemas do CodeQL
+                // Se o ChatGPT falhou, gera um relatório básico com os problemas do CodeQL
                 warn!("ChatGPT falhou, gerando relatório básico com problemas do CodeQL");
-                self.generate_basic_report(&codeql_analysis).await?
+                self.generate_basic_report(&codeql_analysis, &chunks)
+                    .await?
             }
         };
 
@@ -354,6 +355,7 @@ impl CodeQLAnalyzer {
     async fn generate_basic_report(
         &self,
         codeql_analysis: &CodeQLAnalysis,
+        chunks: &[crate::types::Chunk],
     ) -> crate::Result<String> {
         let now = chrono::Utc::now().format("%Y-%m-%d %H:%M:%S UTC");
 
@@ -420,6 +422,33 @@ impl CodeQLAnalyzer {
 
         // Adiciona cada problema encontrado
         for result in &codeql_analysis.results {
+            // Procura o código real da linha nos chunks já processados
+            let code_line = if let Some(line_num) = result.line_number {
+                // Procura o chunk que contém este arquivo
+                let mut found_code = None;
+                for chunk in chunks {
+                    if chunk
+                        .file_path
+                        .to_string_lossy()
+                        .ends_with(&result.file_path.replace("./", ""))
+                    {
+                        // Encontra a linha específica no chunk
+                        let lines: Vec<&str> = chunk.content.lines().collect();
+                        let line_idx = line_num as usize;
+                        if line_idx > 0 && line_idx <= lines.len() {
+                            found_code = Some(lines[line_idx - 1].to_string());
+                            break;
+                        }
+                    }
+                }
+
+                found_code.unwrap_or_else(|| {
+                    format!("[Linha {} não encontrada nos chunks processados]", line_num)
+                })
+            } else {
+                "[Número da linha não disponível]".to_string()
+            };
+
             report.push_str(&format!(
                 "### {} - Linha {}
 
@@ -431,7 +460,7 @@ impl CodeQLAnalyzer {
 
 **Código Problemático:**
 ```python
-[Linha {}: {}]
+{}
 ```
 
 **Contexto do Problema:**
@@ -448,8 +477,7 @@ impl CodeQLAnalyzer {
                 result.line_number.unwrap_or(0),
                 result.message,
                 result.severity,
-                result.line_number.unwrap_or(0),
-                result.message,
+                code_line,
                 result.file_path,
                 result.line_number.unwrap_or(0),
                 "N/A", // Função não disponível no CodeQL
