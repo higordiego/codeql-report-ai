@@ -127,7 +127,7 @@ impl CodeQLAnalysis {
 
     pub fn update_statistics(&mut self) {
         self.statistics.total_results = self.results.len();
-        
+
         let mut files_with_issues = std::collections::HashSet::new();
         let mut high_count = 0;
         let mut medium_count = 0;
@@ -135,7 +135,7 @@ impl CodeQLAnalysis {
 
         for result in &self.results {
             files_with_issues.insert(result.file_path.clone());
-            
+
             match result.severity.to_lowercase().as_str() {
                 "error" | "high" => high_count += 1,
                 "warning" | "medium" => medium_count += 1,
@@ -179,9 +179,8 @@ impl CodeQLAnalysis {
     }
 
     pub fn from_json_file(path: &str) -> crate::Result<Self> {
-        let content = std::fs::read_to_string(path)
-            .map_err(|e| crate::Error::Io(e))?;
-        
+        let content = std::fs::read_to_string(path).map_err(|e| crate::Error::Io(e))?;
+
         Self::from_json(&content)
     }
 
@@ -190,7 +189,7 @@ impl CodeQLAnalysis {
         if let Ok(sarif_report) = serde_json::from_str::<crate::codeql::SarifReport>(json_content) {
             return Self::from_sarif(sarif_report);
         }
-        
+
         // Fallback para formato simples (array de resultados)
         if let Ok(results) = serde_json::from_str::<Vec<CodeQLResult>>(json_content) {
             let mut analysis = Self::new();
@@ -198,31 +197,37 @@ impl CodeQLAnalysis {
             analysis.update_statistics();
             return Ok(analysis);
         }
-        
+
         // Se não conseguir parsear, retorna erro
-        Err(crate::Error::Config("Formato JSON não reconhecido".to_string()))
+        Err(crate::Error::Config(
+            "Formato JSON não reconhecido".to_string(),
+        ))
     }
 
     pub fn from_sarif(sarif_report: crate::codeql::SarifReport) -> crate::Result<Self> {
         let mut analysis = Self::new();
-        
+
         for run in sarif_report.runs {
             for result in run.results {
                 let codeql_result = Self::convert_sarif_result(result);
                 analysis.results.push(codeql_result);
             }
         }
-        
+
         analysis.update_statistics();
         Ok(analysis)
     }
 
     fn convert_sarif_result(sarif_result: crate::codeql::Result) -> CodeQLResult {
-        let location = sarif_result.locations.first()
+        let location = sarif_result
+            .locations
+            .first()
             .and_then(|loc| loc.physical_location.region.as_ref());
-        
+
         // Normaliza o caminho do arquivo
-        let file_path = sarif_result.locations.first()
+        let file_path = sarif_result
+            .locations
+            .first()
             .map(|loc| {
                 let uri = &loc.physical_location.artifact_location.uri;
                 // Remove prefixos como "file://" e normaliza o caminho
@@ -239,9 +244,11 @@ impl CodeQLAnalysis {
                 }
             })
             .unwrap_or_else(|| "unknown".to_string());
-        
+
         CodeQLResult {
-            rule_id: sarif_result.rule_id.unwrap_or_else(|| "unknown".to_string()),
+            rule_id: sarif_result
+                .rule_id
+                .unwrap_or_else(|| "unknown".to_string()),
             message: sarif_result.message.text,
             severity: sarif_result.level.unwrap_or_else(|| "warning".to_string()),
             file_path,

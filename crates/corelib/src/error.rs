@@ -42,5 +42,3 @@ pub enum Error {
 
 /// Tipo de resultado para a biblioteca
 pub type Result<T> = std::result::Result<T, Error>;
-
-

@@ -61,34 +61,40 @@ impl ChatGPTClient {
             .timeout(Duration::from_secs(config.timeout_seconds))
             .build()
             .map_err(|e| crate::Error::Http(e))?;
-        
+
         Ok(Self {
             client,
             config,
             rate_limiter: tokio::sync::Mutex::new(()),
         })
     }
-    
+
     /// Envia uma requisição para o ChatGPT
     pub async fn send_request(&self, messages: Vec<ChatMessage>) -> crate::Result<ChatResponse> {
         let _rate_limit_guard = self.rate_limiter.lock().await;
-        
+
         // Rate limiting
-        sleep(Duration::from_millis(1000 / self.config.rate_limit_rps as u64)).await;
-        
+        sleep(Duration::from_millis(
+            1000 / self.config.rate_limit_rps as u64,
+        ))
+        .await;
+
         let request = ChatRequest {
             model: self.config.model.clone(),
             messages,
             temperature: self.config.temperature,
             max_tokens: Some(4000), // Limite razoável para respostas
         };
-        
+
         debug!("Enviando requisição para ChatGPT: {:?}", request);
-        
+
         let response = self
             .client
             .post(&self.config.openai_base_url)
-            .header("Authorization", format!("Bearer {}", self.config.openai_api_key))
+            .header(
+                "Authorization",
+                format!("Bearer {}", self.config.openai_api_key),
+            )
             .header("Content-Type", "application/json")
             .json(&request)
             .send()
@@ -97,34 +103,45 @@ impl ChatGPTClient {
                 error!("Erro na requisição HTTP: {}", e);
                 crate::Error::Http(e)
             })?;
-        
+
         if !response.status().is_success() {
             let status = response.status();
-            let error_text = response.text().await.unwrap_or_else(|_| "Erro desconhecido".to_string());
-            
+            let error_text = response
+                .text()
+                .await
+                .unwrap_or_else(|_| "Erro desconhecido".to_string());
+
             error!("Erro na resposta do ChatGPT: {} - {}", status, error_text);
-            
+
             return match status.as_u16() {
                 429 => Err(crate::Error::RateLimit),
-                401 => Err(crate::Error::Authentication("Chave API inválida".to_string())),
-                400 => Err(crate::Error::ChatGPT(format!("Requisição inválida: {}", error_text))),
-                _ => Err(crate::Error::ChatGPT(format!("Erro HTTP {}: {}", status, error_text))),
+                401 => Err(crate::Error::Authentication(
+                    "Chave API inválida".to_string(),
+                )),
+                400 => Err(crate::Error::ChatGPT(format!(
+                    "Requisição inválida: {}",
+                    error_text
+                ))),
+                _ => Err(crate::Error::ChatGPT(format!(
+                    "Erro HTTP {}: {}",
+                    status, error_text
+                ))),
             };
         }
-        
+
         let chat_response: ChatResponse = response.json().await.map_err(|e| {
             error!("Erro ao deserializar resposta: {}", e);
             crate::Error::Http(e)
         })?;
-        
+
         info!(
             "Resposta recebida do ChatGPT. Tokens usados: {}/{}",
             chat_response.usage.total_tokens, self.config.max_payload_tokens
         );
-        
+
         Ok(chat_response)
     }
-    
+
     /// Analisa um chunk de código com o ChatGPT e retorna relatório Markdown
     pub async fn analyze_code_chunk(
         &self,
@@ -135,7 +152,7 @@ impl ChatGPTClient {
             role: "system".to_string(),
             content: self.get_system_prompt().to_string(),
         };
-        
+
         let user_message = ChatMessage {
             role: "user".to_string(),
             content: format!(
@@ -143,19 +160,21 @@ impl ChatGPTClient {
                 file_info, chunk_content
             ),
         };
-        
+
         let messages = vec![system_message, user_message];
-        
+
         let response = self.send_request(messages).await?;
-        
+
         if let Some(choice) = response.choices.first() {
             let content = &choice.message.content;
             return Ok(content.clone());
         }
-        
-        Err(crate::Error::ChatGPT("Nenhuma resposta válida recebida".to_string()))
+
+        Err(crate::Error::ChatGPT(
+            "Nenhuma resposta válida recebida".to_string(),
+        ))
     }
-    
+
     /// Obtém o prompt do sistema
     fn get_system_prompt(&self) -> &str {
         r#"Você é um especialista em segurança de código e análise estática. 
@@ -279,14 +298,14 @@ Seja objetivo, técnico e acionável. Priorize segurança e qualidade. Use emoji
 
 Seja objetivo, técnico e acionável. Priorize segurança e qualidade."#
     }
-    
+
     /// Tenta extrair análise JSON da resposta
     fn parse_analysis_from_response(&self, content: &str) -> crate::Result<ChatGPTAnalysis> {
         // Procura por blocos JSON na resposta
         if let Some(json_start) = content.find('{') {
             if let Some(json_end) = content.rfind('}') {
                 let json_str = &content[json_start..=json_end];
-                
+
                 match serde_json::from_str::<ChatGPTAnalysis>(json_str) {
                     Ok(analysis) => return Ok(analysis),
                     Err(e) => {
@@ -295,10 +314,12 @@ Seja objetivo, técnico e acionável. Priorize segurança e qualidade."#
                 }
             }
         }
-        
-        Err(crate::Error::InvalidFormat("JSON não encontrado na resposta".to_string()))
+
+        Err(crate::Error::InvalidFormat(
+            "JSON não encontrado na resposta".to_string(),
+        ))
     }
-    
+
     /// Cria uma análise básica quando não consegue extrair JSON
     fn create_basic_analysis(&self, content: &str) -> ChatGPTAnalysis {
         ChatGPTAnalysis {
@@ -307,7 +328,8 @@ Seja objetivo, técnico e acionável. Priorize segurança e qualidade."#
             recommendations: vec![Recommendation {
                 priority: "medium".to_string(),
                 title: "Análise manual necessária".to_string(),
-                description: "Não foi possível extrair análise estruturada da resposta do ChatGPT".to_string(),
+                description: "Não foi possível extrair análise estruturada da resposta do ChatGPT"
+                    .to_string(),
                 effort: "1-2 horas".to_string(),
                 impact: "Médio".to_string(),
                 steps: vec!["Revisar manualmente o código".to_string()],

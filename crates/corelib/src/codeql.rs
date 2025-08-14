@@ -83,9 +83,3 @@ pub struct Region {
     #[serde(rename = "endColumn")]
     pub end_column: Option<u32>,
 }
-
-
-
-
-
-

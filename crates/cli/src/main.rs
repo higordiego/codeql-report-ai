@@ -1,5 +1,5 @@
-use codeql_corelib::{CodeQLAnalyzer, Config, Result};
 use clap::Parser;
+use codeql_corelib::{CodeQLAnalyzer, Config, Result};
 use colored::*;
 use std::path::PathBuf;
 use tracing::{info, Level};
@@ -12,28 +12,73 @@ fn print_banner(show_quick_start: bool) {
     println!();
 
     // Banner do Code Report
-    println!("{}", "   ██████╗ ██████╗ ██████╗ ███████╗    ██████╗ ███████╗██████╗  ██████╗ ██████╗ ████████╗".bright_blue());
-    println!("{}", "  ██╔════╝██╔═══██╗██╔══██╗██╔════╝    ██╔══██╗██╔════╝██╔══██╗██╔═══██╗██╔══██╗╚══██╔══╝".bright_blue());
-    println!("{}", "  ██║     ██║   ██║██║  ██║█████╗      ██████╔╝█████╗  ██████╔╝██║   ██║██████╔╝   ██║   ".bright_blue());
-    println!("{}", "  ██║     ██║   ██║██║  ██║██╔══╝      ██╔══██╗██╔══╝  ██╔═══╝ ██║   ██║██╔══██╗   ██║   ".bright_blue());
-    println!("{}", "  ╚██████╗╚██████╔╝██████╔╝███████╗    ██║  ██║███████╗██║     ╚██████╔╝██║  ██║   ██║   ".bright_blue());
-    println!("{}", "   ╚═════╝ ╚═════╝ ╚═════╝ ╚══════╝    ╚═╝  ╚═╝╚══════╝╚═╝      ╚═════╝ ╚═╝  ╚═╝   ╚═╝   ".bright_blue());
+    println!(
+        "{}",
+        "   ██████╗ ██████╗ ██████╗ ███████╗    ██████╗ ███████╗██████╗  ██████╗ ██████╗ ████████╗"
+            .bright_blue()
+    );
+    println!(
+        "{}",
+        "  ██╔════╝██╔═══██╗██╔══██╗██╔════╝    ██╔══██╗██╔════╝██╔══██╗██╔═══██╗██╔══██╗╚══██╔══╝"
+            .bright_blue()
+    );
+    println!(
+        "{}",
+        "  ██║     ██║   ██║██║  ██║█████╗      ██████╔╝█████╗  ██████╔╝██║   ██║██████╔╝   ██║   "
+            .bright_blue()
+    );
+    println!(
+        "{}",
+        "  ██║     ██║   ██║██║  ██║██╔══╝      ██╔══██╗██╔══╝  ██╔═══╝ ██║   ██║██╔══██╗   ██║   "
+            .bright_blue()
+    );
+    println!(
+        "{}",
+        "  ╚██████╗╚██████╔╝██████╔╝███████╗    ██║  ██║███████╗██║     ╚██████╔╝██║  ██║   ██║   "
+            .bright_blue()
+    );
+    println!(
+        "{}",
+        "   ╚═════╝ ╚═════╝ ╚═════╝ ╚══════╝    ╚═╝  ╚═╝╚══════╝╚═╝      ╚═════╝ ╚═╝  ╚═╝   ╚═╝   "
+            .bright_blue()
+    );
     println!();
-    println!("{}", "                    🔍 Advanced Security Analysis Tool".bright_white());
-    println!("{}", "                    🤖 Powered by AI & Static Analysis".bright_white());
+    println!(
+        "{}",
+        "                    🔍 Advanced Security Analysis Tool".bright_white()
+    );
+    println!(
+        "{}",
+        "                    🤖 Powered by AI & Static Analysis".bright_white()
+    );
     println!();
-    println!("{}", "╔══════════════════════════════════════════════════════════════════════════════╗".bright_blue());
-    println!("{}", "║  🛡️  Security Analysis | 🔍 Static Analysis | 🤖 AI-Powered | 📊 Reports  ║".bright_cyan());
-    println!("{}", "╚══════════════════════════════════════════════════════════════════════════════╝".bright_blue());
+    println!(
+        "{}",
+        "╔══════════════════════════════════════════════════════════════════════════════╗"
+            .bright_blue()
+    );
+    println!(
+        "{}",
+        "║  🛡️  Security Analysis | 🔍 Static Analysis | 🤖 AI-Powered | 📊 Reports  ║"
+            .bright_cyan()
+    );
+    println!(
+        "{}",
+        "╚══════════════════════════════════════════════════════════════════════════════╝"
+            .bright_blue()
+    );
     println!();
     println!("{}", "🚀 Initializing Code Report v1.0.0...".bright_green());
     println!();
-    
+
     if show_quick_start {
         // Dicas de uso para desenvolvedores
         println!("{}", "💡 Quick Start:".bright_yellow());
         println!("{}", "   ./codeql-ai -i results.json -p .".bright_white());
-        println!("{}", "   ./codeql-ai -i results.json -p . -v debug".bright_white());
+        println!(
+            "{}",
+            "   ./codeql-ai -i results.json -p . -v debug".bright_white()
+        );
         println!("{}", "   ./codeql-ai --help".bright_white());
         println!();
     }
@@ -57,7 +102,13 @@ struct Cli {
     project_root: PathBuf,
 
     /// Arquivo de saída para o relatório
-    #[arg(short, long, value_name = "FILE", default_value = "codeql-analysis-report.md", help_heading = "OUTPUT")]
+    #[arg(
+        short,
+        long,
+        value_name = "FILE",
+        default_value = "codeql-analysis-report.md",
+        help_heading = "OUTPUT"
+    )]
     output: PathBuf,
 
     /// Chave da API do OpenAI (opcional, usa OPENAI_API_KEY env var ou demo key)
@@ -65,11 +116,22 @@ struct Cli {
     openai_api_key: Option<String>,
 
     /// Modelo do ChatGPT a ser usado
-    #[arg(long, value_name = "MODEL", default_value = "gpt-3.5-turbo", help_heading = "AI")]
+    #[arg(
+        long,
+        value_name = "MODEL",
+        default_value = "gpt-3.5-turbo",
+        help_heading = "AI"
+    )]
     model: String,
 
     /// Nível de verbosidade
-    #[arg(short, long, value_name = "LEVEL", default_value = "info", help_heading = "LOGGING")]
+    #[arg(
+        short,
+        long,
+        value_name = "LEVEL",
+        default_value = "info",
+        help_heading = "LOGGING"
+    )]
     verbosity: Level,
 }
 
@@ -81,45 +143,86 @@ async fn main() -> Result<()> {
         Err(e) => {
             // Mostra banner mesmo em caso de erro
             print_banner(true);
-            
+
             // Verifica o tipo de erro pela mensagem
             let error_msg = e.to_string();
-            
+
             // Se for erro relacionado ao parâmetro -v
             if error_msg.contains("--verbosity") || error_msg.contains("-v") {
                 println!("{}", "❌ Verbosity level not specified".bright_red());
                 println!();
                 println!("{}", "🔧 Verbosity Levels:".bright_yellow());
-                println!("{}", "   info     Basic information (default)".bright_white());
-                println!("{}", "   debug    Detailed debugging information".bright_white());
-                println!("{}", "   trace    Complete trace information".bright_white());
+                println!(
+                    "{}",
+                    "   info     Basic information (default)".bright_white()
+                );
+                println!(
+                    "{}",
+                    "   debug    Detailed debugging information".bright_white()
+                );
+                println!(
+                    "{}",
+                    "   trace    Complete trace information".bright_white()
+                );
                 println!();
                 println!("{}", "💡 Examples:".bright_yellow());
-                println!("{}", "   ./codeql-ai -i results.json -p . -v debug".bright_white());
-                println!("{}", "   ./codeql-ai -i results.json -p . -v trace".bright_white());
-                println!("{}", "   ./codeql-ai -i results.json -p . -v info".bright_white());
+                println!(
+                    "{}",
+                    "   ./codeql-ai -i results.json -p . -v debug".bright_white()
+                );
+                println!(
+                    "{}",
+                    "   ./codeql-ai -i results.json -p . -v trace".bright_white()
+                );
+                println!(
+                    "{}",
+                    "   ./codeql-ai -i results.json -p . -v info".bright_white()
+                );
                 println!();
-                println!("{}", "📖 For detailed help: ./codeql-ai --help".bright_cyan());
+                println!(
+                    "{}",
+                    "📖 For detailed help: ./codeql-ai --help".bright_cyan()
+                );
                 std::process::exit(1);
             }
             // Se for erro de argumento faltando
-            else if e.kind() == clap::error::ErrorKind::MissingRequiredArgument || 
-                    error_msg.contains("required") || error_msg.contains("supplied") {
+            else if e.kind() == clap::error::ErrorKind::MissingRequiredArgument
+                || error_msg.contains("required")
+                || error_msg.contains("supplied")
+            {
                 println!("{}", "❌ Missing required argument".bright_red());
                 println!();
-                            println!("{}", "💡 Quick Start:".bright_yellow());
-            println!("{}", "   ./codeql-ai -i results.json -p .".bright_white());
-            println!("{}", "   ./codeql-ai -i results.json -p . -o report.md".bright_white());
-            println!("{}", "   ./codeql-ai -i results.json -p . -v debug".bright_white());
+                println!("{}", "💡 Quick Start:".bright_yellow());
+                println!("{}", "   ./codeql-ai -i results.json -p .".bright_white());
+                println!(
+                    "{}",
+                    "   ./codeql-ai -i results.json -p . -o report.md".bright_white()
+                );
+                println!(
+                    "{}",
+                    "   ./codeql-ai -i results.json -p . -v debug".bright_white()
+                );
                 println!();
                 println!("{}", "🔧 Options:".bright_yellow());
-                println!("{}", "   -i <file>     Input CodeQL results file (required)".bright_white());
-                println!("{}", "   -p <path>     Project root directory (required)".bright_white());
+                println!(
+                    "{}",
+                    "   -i <file>     Input CodeQL results file (required)".bright_white()
+                );
+                println!(
+                    "{}",
+                    "   -p <path>     Project root directory (required)".bright_white()
+                );
                 println!("{}", "   -o <file>     Output report file".bright_white());
-                println!("{}", "   -v <level>    Verbosity: debug, trace".bright_white());
+                println!(
+                    "{}",
+                    "   -v <level>    Verbosity: debug, trace".bright_white()
+                );
                 println!("{}", "   --help        Show all options".bright_white());
                 println!();
-                println!("{}", "📖 For detailed help: ./codeql-ai --help".bright_cyan());
+                println!(
+                    "{}",
+                    "📖 For detailed help: ./codeql-ai --help".bright_cyan()
+                );
                 std::process::exit(1);
             } else {
                 // Para outros tipos de erro, mostra o erro padrão do clap
@@ -145,7 +248,8 @@ async fn main() -> Result<()> {
     }
 
     // Obtém a chave da API do OpenAI (com fallback para desenvolvimento)
-    let openai_api_key = cli.openai_api_key
+    let openai_api_key = cli
+        .openai_api_key
         .or_else(|| std::env::var("OPENAI_API_KEY").ok())
         .unwrap_or_else(|| "sk-demo-key-for-development".to_string());
 
@@ -173,7 +277,7 @@ async fn main() -> Result<()> {
             chunk_target_tokens: 3000,
             rate_limit_rps: 30,
             timeout_seconds: 30,
-        }
+        },
     };
 
     // Cria o analisador (sem logs visíveis)
@@ -187,34 +291,83 @@ async fn main() -> Result<()> {
         }
         None => {
             // Mostra mensagem de boas-vindas simplificada
-            println!("{}", "🎯 Ready to analyze CodeQL results with AI".bright_cyan());
+            println!(
+                "{}",
+                "🎯 Ready to analyze CodeQL results with AI".bright_cyan()
+            );
             println!();
-                                println!("{}", "📋 Usage:".bright_yellow());
-                    println!("{}", "   ./codeql-ai -i <file.json> -p <path>".bright_white());
-                    println!("{}", "   ./codeql-ai -i <file.json> -p <path> -o report.md".bright_white());
-                    println!("{}", "   ./codeql-ai -i <file.json> -p <path> -v debug".bright_white());
-                    println!();
-                    println!("{}", "🔧 Options:".bright_yellow());
-                    println!("{}", "   -i <file>     Input CodeQL results file (required)".bright_white());
-                    println!("{}", "   -p <path>     Project root directory (required)".bright_white());
-                    println!("{}", "   -o <file>     Output report file (default: codeql-analysis-report.md)".bright_white());
-                    println!("{}", "   -v <level>    Verbosity: debug, trace".bright_white());
-                    println!("{}", "   --help        Show all options".bright_white());
+            println!("{}", "📋 Usage:".bright_yellow());
+            println!(
+                "{}",
+                "   ./codeql-ai -i <file.json> -p <path>".bright_white()
+            );
+            println!(
+                "{}",
+                "   ./codeql-ai -i <file.json> -p <path> -o report.md".bright_white()
+            );
+            println!(
+                "{}",
+                "   ./codeql-ai -i <file.json> -p <path> -v debug".bright_white()
+            );
+            println!();
+            println!("{}", "🔧 Options:".bright_yellow());
+            println!(
+                "{}",
+                "   -i <file>     Input CodeQL results file (required)".bright_white()
+            );
+            println!(
+                "{}",
+                "   -p <path>     Project root directory (required)".bright_white()
+            );
+            println!(
+                "{}",
+                "   -o <file>     Output report file (default: codeql-analysis-report.md)"
+                    .bright_white()
+            );
+            println!(
+                "{}",
+                "   -v <level>    Verbosity: debug, trace".bright_white()
+            );
+            println!("{}", "   --help        Show all options".bright_white());
             println!();
             return Ok(());
         }
     }
 
     println!();
-    println!("{}", "╔══════════════════════════════════════════════════════════════════════════════╗".bright_green());
-    println!("{}", "║                            🎯 ANALYSIS COMPLETE 🎯                        ║".bright_green());
-    println!("{}", "╚══════════════════════════════════════════════════════════════════════════════╝".bright_green());
+    println!(
+        "{}",
+        "╔══════════════════════════════════════════════════════════════════════════════╗"
+            .bright_green()
+    );
+    println!(
+        "{}",
+        "║                            🎯 ANALYSIS COMPLETE 🎯                        ║"
+            .bright_green()
+    );
+    println!(
+        "{}",
+        "╚══════════════════════════════════════════════════════════════════════════════╝"
+            .bright_green()
+    );
     println!();
     println!("{}", "✅ Analysis completed successfully!".bright_green());
-    println!("{}", format!("📄 Report saved to: {}", output_path.display()).bright_blue());
-    println!("{}", "🔒 Security vulnerabilities identified and documented".bright_red());
-    println!("{}", "💡 AI-powered recommendations generated".bright_magenta());
-    println!("{}", "🛡️  Security posture assessment completed".bright_yellow());
+    println!(
+        "{}",
+        format!("📄 Report saved to: {}", output_path.display()).bright_blue()
+    );
+    println!(
+        "{}",
+        "🔒 Security vulnerabilities identified and documented".bright_red()
+    );
+    println!(
+        "{}",
+        "💡 AI-powered recommendations generated".bright_magenta()
+    );
+    println!(
+        "{}",
+        "🛡️  Security posture assessment completed".bright_yellow()
+    );
     println!();
     println!("{}", "🚀 Code Report - Mission Accomplished!".bright_cyan());
     Ok(())
