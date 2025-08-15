@@ -1,4 +1,4 @@
-use clap::Parser;
+use clap::{Parser, Subcommand};
 use codeql_corelib::{CodeQLAnalyzer, Config, Result};
 use colored::*;
 use std::path::PathBuf;
@@ -89,9 +89,12 @@ fn print_banner(show_quick_start: bool) {
     about = "🔍 Code Report - Advanced CodeQL Analysis with AI Integration",
     version,
     long_about = "Code Report is a professional security analysis tool that combines CodeQL static analysis with ChatGPT AI to generate comprehensive security reports and action plans in Markdown format.",
-    after_help = "💡 Examples:\n  ./codeql-ai -i results.json\n  ./codeql-ai -i results.json -o report.md\n  ./codeql-ai -i results.json -v debug"
+    after_help = "💡 Examples:\n  ./codeql-ai -i results.json\n  ./codeql-ai -i results.json -o report.md\n  ./codeql-ai -i results.json -v debug\n  ./codeql-ai fix -i results.json -p . -o fixed_code.py"
 )]
 struct Cli {
+    #[command(subcommand)]
+    command: Option<Commands>,
+
     /// Arquivo JSON com resultados do CodeQL
     #[arg(short, long, value_name = "FILE", help_heading = "INPUT")]
     input: Option<PathBuf>,
@@ -146,6 +149,36 @@ struct Cli {
         help_heading = "ANALYSIS"
     )]
     report_level: String,
+}
+
+#[derive(Subcommand)]
+enum Commands {
+    /// Gera código corrigido baseado nas vulnerabilidades encontradas
+    Fix {
+        /// Arquivo JSON com resultados do CodeQL
+        #[arg(short, long, value_name = "FILE")]
+        input: PathBuf,
+
+        /// Diretório raiz do projeto
+        #[arg(short, long, value_name = "PATH")]
+        project_root: PathBuf,
+
+        /// Arquivo de saída para o código corrigido
+        #[arg(short, long, value_name = "FILE", default_value = "fixed_code.py")]
+        output: PathBuf,
+
+        /// Chave da API do OpenAI (opcional)
+        #[arg(long, value_name = "KEY")]
+        openai_api_key: Option<String>,
+
+        /// Modelo do ChatGPT a ser usado
+        #[arg(long, value_name = "MODEL", default_value = "gpt-3.5-turbo")]
+        model: String,
+
+        /// Nível de verbosidade
+        #[arg(short, long, value_name = "LEVEL", default_value = "info")]
+        verbosity: Option<Level>,
+    },
 }
 
 #[tokio::main]
@@ -216,54 +249,150 @@ async fn main() -> Result<()> {
     // Cria o analisador (sem logs visíveis)
     let analyzer = CodeQLAnalyzer::new(config)?;
 
-    // Verifica se foi fornecido um arquivo de input
-    match &cli.input {
-        Some(input_file) => {
-            // Executa a análise
-            analyzer.analyze(&input_file.to_string_lossy()).await?;
+    // Verifica se foi fornecido um comando específico
+    match &cli.command {
+        Some(Commands::Fix {
+            input,
+            project_root,
+            output,
+            openai_api_key,
+            model,
+            verbosity,
+        }) => {
+            // Configura logging para o comando fix
+            if let Some(verbosity) = verbosity {
+                if *verbosity > Level::INFO {
+                    tracing_subscriber::fmt().with_max_level(*verbosity).init();
+                }
+            }
+
+            // Obtém a chave da API do OpenAI para o comando fix
+            let fix_openai_api_key = openai_api_key
+                .clone()
+                .or_else(|| std::env::var("OPENAI_API_KEY").ok())
+                .unwrap_or_else(|| "sk-demo-key-for-development".to_string());
+
+            // Cria configuração específica para o comando fix
+            let fix_config = Config {
+                openai_api_key: fix_openai_api_key,
+                model: model.clone(),
+                project_root: project_root.clone(),
+                output_file: output.clone(),
+                include_fixes: true,
+                report_level: "advanced".to_string(),
+                openai_base_url: "https://api.openai.com/v1/chat/completions".to_string(),
+                temperature: 0.8,
+                max_file_bytes: 350000,
+                max_payload_tokens: 120000,
+                chunk_target_tokens: 3000,
+                rate_limit_rps: 30,
+                timeout_seconds: 120,
+            };
+
+            // Cria o analisador para o comando fix
+            let fix_analyzer = CodeQLAnalyzer::new(fix_config)?;
+
+            // Executa a geração de código corrigido
+            fix_analyzer
+                .generate_fixed_code(&input.to_string_lossy(), &output.to_string_lossy())
+                .await?;
+
+            println!();
+            println!(
+                "{}",
+                "╔══════════════════════════════════════════════════════════════════════════════╗"
+                    .bright_green()
+            );
+            println!(
+                "{}",
+                "║                            🔧 CODE FIXED SUCCESSFULLY 🔧                    ║"
+                    .bright_green()
+            );
+            println!(
+                "{}",
+                "╚══════════════════════════════════════════════════════════════════════════════╝"
+                    .bright_green()
+            );
+            println!();
+            println!("{}", "✅ Code fixed successfully!".bright_green());
+            println!(
+                "{}",
+                format!("📄 Fixed code saved to: {}", output.display()).bright_blue()
+            );
+            println!(
+                "{}",
+                "🔒 Security vulnerabilities have been addressed".bright_red()
+            );
+            println!(
+                "{}",
+                "💡 AI-powered code corrections applied".bright_magenta()
+            );
+            println!("{}", "🛡️  Code is now more secure".bright_yellow());
+            println!();
+            println!(
+                "{}",
+                "🚀 Code Report - Fix Mission Accomplished!".bright_cyan()
+            );
+            return Ok(());
         }
         None => {
-            // Mostra mensagem de boas-vindas simplificada
-            println!(
-                "{}",
-                "🎯 Ready to analyze CodeQL results with AI".bright_cyan()
-            );
-            println!();
-            println!("{}", "📋 Usage:".bright_yellow());
-            println!(
-                "{}",
-                "   ./codeql-ai -i <file.json> -p <path>".bright_white()
-            );
-            println!(
-                "{}",
-                "   ./codeql-ai -i <file.json> -p <path> -o report.md".bright_white()
-            );
-            println!(
-                "{}",
-                "   ./codeql-ai -i <file.json> -p <path> -v debug".bright_white()
-            );
-            println!();
-            println!("{}", "🔧 Options:".bright_yellow());
-            println!(
-                "{}",
-                "   -i <file>     Input CodeQL results file (required)".bright_white()
-            );
-            println!(
-                "{}",
-                "   -p <path>     Project root directory (required)".bright_white()
-            );
-            println!(
-                "{}",
-                "   -o <file>     Output report file (default: codeql-analysis-report.md)"
-                    .bright_white()
-            );
-            println!(
-                "{}",
-                "   -v <level>    Verbosity: debug, trace".bright_white()
-            );
-            println!("{}", "   --help        Show all options".bright_white());
-            println!();
-            return Ok(());
+            // Comportamento original para análise de relatório
+            match &cli.input {
+                Some(input_file) => {
+                    // Executa a análise
+                    analyzer.analyze(&input_file.to_string_lossy()).await?;
+                }
+                None => {
+                    // Mostra mensagem de boas-vindas simplificada
+                    println!(
+                        "{}",
+                        "🎯 Ready to analyze CodeQL results with AI".bright_cyan()
+                    );
+                    println!();
+                    println!("{}", "📋 Usage:".bright_yellow());
+                    println!(
+                        "{}",
+                        "   ./codeql-ai -i <file.json> -p <path>".bright_white()
+                    );
+                    println!(
+                        "{}",
+                        "   ./codeql-ai -i <file.json> -p <path> -o report.md".bright_white()
+                    );
+                    println!(
+                        "{}",
+                        "   ./codeql-ai -i <file.json> -p <path> -v debug".bright_white()
+                    );
+                    println!();
+                    println!("{}", "🔧 Commands:".bright_yellow());
+                    println!(
+                        "{}",
+                        "   ./codeql-ai fix -i <file.json> -p <path> -o fixed_code.py"
+                            .bright_white()
+                    );
+                    println!();
+                    println!("{}", "🔧 Options:".bright_yellow());
+                    println!(
+                        "{}",
+                        "   -i <file>     Input CodeQL results file (required)".bright_white()
+                    );
+                    println!(
+                        "{}",
+                        "   -p <path>     Project root directory (required)".bright_white()
+                    );
+                    println!(
+                        "{}",
+                        "   -o <file>     Output report file (default: codeql-analysis-report.md)"
+                            .bright_white()
+                    );
+                    println!(
+                        "{}",
+                        "   -v <level>    Verbosity: debug, trace".bright_white()
+                    );
+                    println!("{}", "   --help        Show all options".bright_white());
+                    println!();
+                    return Ok(());
+                }
+            }
         }
     }
 

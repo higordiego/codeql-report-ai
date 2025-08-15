@@ -433,4 +433,117 @@ REGRAS OBRIGATÓRIAS:
 9. NÃO inclua emojis ou formatação colorida no relatório
 10. Forneça recomendações de correção ACEITÁVEIS e PRÁTICAS"#
     }
+
+    /// Gera código corrigido baseado nas vulnerabilidades encontradas
+    pub async fn generate_fixed_code(
+        &self,
+        _findings: &[crate::types::CodeQLResult],
+        _code_snippets: &[(String, String)],
+        full_file_content: &str,
+        original_json: &str,
+    ) -> crate::Result<String> {
+        let system_message = ChatMessage {
+            role: "system".to_string(),
+            content: self.get_code_fix_system_prompt().to_string(),
+        };
+
+        let user_message = ChatMessage {
+            role: "user".to_string(),
+            content: format!(
+                r#"Analise o seguinte JSON do CodeQL e o arquivo de código para gerar um código corrigido e seguro.
+
+JSON ORIGINAL DO CODEQL:
+```json
+{}
+```
+
+ARQUIVO DE CÓDIGO ANALISADO:
+```python
+{}
+```
+
+INSTRUÇÕES ESPECÍFICAS:
+1. Analise o JSON do CodeQL para identificar TODAS as vulnerabilidades
+2. Identifique as linhas problemáticas no código
+3. Gere um código COMPLETO e CORRIGIDO que resolve TODAS as vulnerabilidades
+4. Mantenha a funcionalidade original do código
+5. Implemente as melhores práticas de segurança
+6. Adicione validações de entrada adequadas
+7. Use bibliotecas e métodos seguros
+8. Inclua tratamento de erros robusto
+9. Adicione logging para auditoria quando apropriado
+10. Comente o código explicando as correções feitas
+
+FORMATO OBRIGATÓRIO:
+- Retorne APENAS o código Python corrigido
+- NÃO inclua explicações em markdown
+- NÃO inclua comentários sobre o processo
+- O código deve ser executável e completo
+- Inclua todos os imports necessários
+- Mantenha a estrutura e funcionalidade original
+- Adicione comentários explicando as correções de segurança
+
+REGRAS DE SEGURANÇA:
+- NUNCA use `shell=True` com entrada do usuário
+- SEMPRE valide entrada antes de processar
+- Use listas de comandos permitidos quando apropriado
+- Implemente timeouts para operações perigosas
+- Use métodos seguros de execução de comandos
+- Trate exceções adequadamente
+- Implemente logging para auditoria"#,
+                original_json, full_file_content
+            ),
+        };
+
+        let messages = vec![system_message, user_message];
+
+        let response = self.send_request(messages).await?;
+
+        if let Some(choice) = response.choices.first() {
+            let content = &choice.message.content;
+            return Ok(content.clone());
+        }
+
+        Err(crate::Error::ChatGPT(
+            "Nenhuma resposta válida recebida".to_string(),
+        ))
+    }
+
+    /// Obtém o prompt do sistema para geração de código corrigido
+    fn get_code_fix_system_prompt(&self) -> &str {
+        r#"Você é um especialista em segurança de código e desenvolvimento Python. Sua tarefa é analisar vulnerabilidades de segurança identificadas pelo CodeQL e gerar código corrigido e seguro.
+
+REGRAS OBRIGATÓRIAS:
+1. Analise TODAS as vulnerabilidades identificadas no JSON do CodeQL
+2. Identifique as linhas problemáticas no código original
+3. Gere código Python COMPLETO e CORRIGIDO
+4. Mantenha a funcionalidade original do código
+5. Implemente as melhores práticas de segurança
+6. Adicione validações de entrada adequadas
+7. Use bibliotecas e métodos seguros
+8. Inclua tratamento de erros robusto
+9. Adicione logging para auditoria quando apropriado
+10. Comente o código explicando as correções de segurança
+
+FORMATO DE RESPOSTA:
+- Retorne APENAS o código Python corrigido
+- NÃO inclua explicações em markdown
+- NÃO inclua comentários sobre o processo
+- O código deve ser executável e completo
+- Inclua todos os imports necessários
+- Mantenha a estrutura e funcionalidade original
+- Adicione comentários explicando as correções de segurança
+
+PRINCÍPIOS DE SEGURANÇA:
+- NUNCA use `shell=True` com entrada do usuário
+- SEMPRE valide entrada antes de processar
+- Use listas de comandos permitidos quando apropriado
+- Implemente timeouts para operações perigosas
+- Use métodos seguros de execução de comandos
+- Trate exceções adequadamente
+- Implemente logging para auditoria
+- Use `shlex.split()` para dividir comandos de forma segura
+- Implemente validação de caracteres perigosos
+- Use `subprocess.run()` com `shell=False`"#
+    }
 }

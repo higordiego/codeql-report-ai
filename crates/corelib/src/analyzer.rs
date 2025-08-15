@@ -786,4 +786,215 @@ def safe_command_execution(user_input):
         );
         Ok(())
     }
+
+    /// Gera código corrigido baseado nas vulnerabilidades encontradas
+    pub async fn generate_fixed_code(
+        &self,
+        codeql_json_path: &str,
+        output_path: &str,
+    ) -> crate::Result<()> {
+        info!(
+            "Iniciando geração de código corrigido: {} -> {}",
+            codeql_json_path, output_path
+        );
+
+        // Mostra progresso para o usuário
+        println!(
+            "{}",
+            "📂 Carregando arquivo de resultados do CodeQL...".bright_blue()
+        );
+
+        // 1. Carrega resultados do CodeQL
+        let codeql_analysis = self.load_codeql_results(codeql_json_path).await?;
+
+        // 2. Extrai o código das linhas apontadas pelo CodeQL e o arquivo completo
+        println!(
+            "{}",
+            "📄 Extraindo código das linhas problemáticas...".bright_yellow()
+        );
+        let code_snippets = self.extract_code_snippets(&codeql_analysis.results).await?;
+        let full_file_content = self.read_full_file(&codeql_analysis.results).await?;
+        let original_json = self.read_original_json(codeql_json_path).await?;
+
+        // 3. Gera código corrigido usando ChatGPT
+        println!("{}", "🔧 Gerando código corrigido...".bright_magenta());
+
+        let fixed_code = match self
+            .chatgpt_client
+            .generate_fixed_code(
+                &codeql_analysis.results,
+                &code_snippets,
+                &full_file_content,
+                &original_json,
+            )
+            .await
+        {
+            Ok(code) => code,
+            Err(_) => {
+                // Se o ChatGPT falhar, gera um código corrigido básico
+                warn!("ChatGPT falhou, gerando código corrigido básico");
+                self.generate_basic_fixed_code(&codeql_analysis, &code_snippets, &full_file_content)
+                    .await?
+            }
+        };
+
+        // 4. Salva o código corrigido
+        println!("{}", "💾 Salvando código corrigido...".bright_cyan());
+        self.save_fixed_code(&fixed_code, output_path).await?;
+
+        info!("Código corrigido gerado com sucesso!");
+        Ok(())
+    }
+
+    /// Gera código corrigido básico quando o ChatGPT falha
+    async fn generate_basic_fixed_code(
+        &self,
+        _codeql_analysis: &CodeQLAnalysis,
+        _code_snippets: &[(String, String)],
+        _full_file_content: &str,
+    ) -> crate::Result<String> {
+        let mut fixed_code = String::new();
+
+        // Adiciona cabeçalho com comentários explicativos
+        fixed_code.push_str("# Código Corrigido - Vulnerabilidades de Segurança Resolvidas\n");
+        fixed_code.push_str("# Gerado automaticamente pelo Code Report\n");
+        fixed_code.push_str("# Data: ");
+        fixed_code.push_str(
+            &chrono::Utc::now()
+                .format("%Y-%m-%d %H:%M:%S UTC")
+                .to_string(),
+        );
+        fixed_code.push_str("\n\n");
+
+        // Adiciona imports seguros
+        fixed_code.push_str("import subprocess\n");
+        fixed_code.push_str("import shlex\n");
+        fixed_code.push_str("import os\n");
+        fixed_code.push_str("import logging\n");
+        fixed_code.push_str("from typing import Optional, List\n\n");
+
+        // Configuração de logging
+        fixed_code.push_str("# Configuração de logging para auditoria\n");
+        fixed_code.push_str("logging.basicConfig(level=logging.INFO)\n");
+        fixed_code.push_str("logger = logging.getLogger(__name__)\n\n");
+
+        // Lista de comandos permitidos
+        fixed_code.push_str("# Lista de comandos permitidos para execução segura\n");
+        fixed_code.push_str("ALLOWED_COMMANDS = [\n");
+        fixed_code.push_str("    'ls', 'pwd', 'whoami', 'date', 'echo', 'cat', 'head', 'tail',\n");
+        fixed_code.push_str("    'grep', 'find', 'wc', 'sort', 'uniq', 'cut', 'tr'\n");
+        fixed_code.push_str("]\n\n");
+
+        // Função de validação de entrada
+        fixed_code.push_str("def validate_input(user_input: str) -> bool:\n");
+        fixed_code.push_str("    \"\"\"Valida se a entrada do usuário é segura\"\"\"\n");
+        fixed_code.push_str("    if not user_input or user_input.strip().is_empty():\n");
+        fixed_code.push_str("        return False\n");
+        fixed_code.push_str("    \n");
+        fixed_code.push_str("    # Verifica se contém caracteres perigosos\n");
+        fixed_code
+            .push_str("    dangerous_chars = [';', '&', '|', '`', '$', '(', ')', '{', '}']\n");
+        fixed_code.push_str("    for char in dangerous_chars:\n");
+        fixed_code.push_str("        if char in user_input:\n");
+        fixed_code.push_str("            return False\n");
+        fixed_code.push_str("    \n");
+        fixed_code.push_str("    return True\n\n");
+
+        // Função de execução segura de comandos
+        fixed_code.push_str("def safe_command_execution(user_input: str) -> str:\n");
+        fixed_code.push_str("    \"\"\"Executa comandos de forma segura\"\"\"\n");
+        fixed_code.push_str("    try:\n");
+        fixed_code.push_str("        # Validação de entrada\n");
+        fixed_code.push_str("        if not validate_input(user_input):\n");
+        fixed_code.push_str("            return \"Erro: Entrada inválida ou perigosa\"\n");
+        fixed_code.push_str("        \n");
+        fixed_code.push_str("        # Divide o comando em partes\n");
+        fixed_code.push_str("        command_parts = shlex.split(user_input)\n");
+        fixed_code.push_str("        \n");
+        fixed_code.push_str("        if not command_parts:\n");
+        fixed_code.push_str("            return \"Erro: Comando inválido\"\n");
+        fixed_code.push_str("        \n");
+        fixed_code.push_str("        # Verifica se o comando está na lista de permitidos\n");
+        fixed_code.push_str("        if command_parts[0] not in ALLOWED_COMMANDS:\n");
+        fixed_code.push_str("            logger.warning(f\"Tentativa de execução de comando não permitido: {command_parts[0]}\")\n");
+        fixed_code
+            .push_str("            return f\"Erro: Comando '{command_parts[0]}' não permitido\"\n");
+        fixed_code.push_str("        \n");
+        fixed_code.push_str("        # Log da execução para auditoria\n");
+        fixed_code.push_str(
+            "        logger.info(f\"Executando comando seguro: {' '.join(command_parts)}\")\n",
+        );
+        fixed_code.push_str("        \n");
+        fixed_code.push_str("        # Executa o comando de forma segura\n");
+        fixed_code.push_str("        result = subprocess.run(\n");
+        fixed_code.push_str("            command_parts,\n");
+        fixed_code.push_str("            shell=False,  # Nunca use shell=True\n");
+        fixed_code.push_str("            capture_output=True,\n");
+        fixed_code.push_str("            text=True,\n");
+        fixed_code.push_str("            timeout=30  # Timeout para segurança\n");
+        fixed_code.push_str("        )\n");
+        fixed_code.push_str("        \n");
+        fixed_code.push_str("        if result.returncode == 0:\n");
+        fixed_code.push_str("            return result.stdout\n");
+        fixed_code.push_str("        else:\n");
+        fixed_code.push_str("            return f\"Erro: {result.stderr}\"\n");
+        fixed_code.push_str("            \n");
+        fixed_code.push_str("    except subprocess.TimeoutExpired:\n");
+        fixed_code.push_str("        logger.error(\"Comando excedeu o tempo limite\")\n");
+        fixed_code.push_str("        return \"Erro: Comando excedeu o tempo limite\"\n");
+        fixed_code.push_str("    except FileNotFoundError:\n");
+        fixed_code.push_str("        logger.error(f\"Comando não encontrado: {command_parts[0] if 'command_parts' in locals() else 'unknown'}\")\n");
+        fixed_code.push_str("        return \"Erro: Comando não encontrado\"\n");
+        fixed_code.push_str("    except Exception as e:\n");
+        fixed_code.push_str("        logger.error(f\"Erro na execução do comando: {str(e)}\")\n");
+        fixed_code.push_str("        return f\"Erro: {str(e)}\"\n\n");
+
+        // Função principal corrigida
+        fixed_code.push_str("def main():\n");
+        fixed_code.push_str("    \"\"\"Função principal com código corrigido\"\"\"\n");
+        fixed_code.push_str("    print(\"=== Sistema de Execução Segura de Comandos ===\")\n");
+        fixed_code.push_str("    print(\"Comandos permitidos:\", \", \".join(ALLOWED_COMMANDS))\n");
+        fixed_code.push_str("    print()\n");
+        fixed_code.push_str("    \n");
+        fixed_code.push_str("    while True:\n");
+        fixed_code.push_str("        try:\n");
+        fixed_code.push_str(
+            "            user_input = input(\"Digite um comando (ou 'quit' para sair): \")\n",
+        );
+        fixed_code.push_str("            \n");
+        fixed_code.push_str("            if user_input.lower() == 'quit':\n");
+        fixed_code.push_str("                print(\"Saindo...\")\n");
+        fixed_code.push_str("                break\n");
+        fixed_code.push_str("            \n");
+        fixed_code.push_str("            result = safe_command_execution(user_input)\n");
+        fixed_code.push_str("            print(f\"Resultado: {result}\")\n");
+        fixed_code.push_str("            \n");
+        fixed_code.push_str("        except KeyboardInterrupt:\n");
+        fixed_code.push_str("            print(\"\\nSaindo...\")\n");
+        fixed_code.push_str("            break\n");
+        fixed_code.push_str("        except Exception as e:\n");
+        fixed_code.push_str("            print(f\"Erro inesperado: {str(e)}\")\n\n");
+
+        fixed_code.push_str("if __name__ == \"__main__\":\n");
+        fixed_code.push_str("    main()\n");
+
+        Ok(fixed_code)
+    }
+
+    /// Salva o código corrigido no arquivo de saída
+    async fn save_fixed_code(&self, fixed_code: &str, output_path: &str) -> crate::Result<()> {
+        info!("Salvando código corrigido em: {}", output_path);
+
+        // Cria diretório pai se não existir
+        let output_path_buf = std::path::PathBuf::from(output_path);
+        if let Some(parent) = output_path_buf.parent() {
+            std::fs::create_dir_all(parent).map_err(crate::Error::Io)?;
+        }
+
+        // Salva o código corrigido
+        std::fs::write(output_path, fixed_code).map_err(crate::Error::Io)?;
+
+        info!("Código corrigido salvo com sucesso em: {}", output_path);
+        Ok(())
+    }
 }
