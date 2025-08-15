@@ -5,12 +5,12 @@ use std::path::PathBuf;
 use tracing::{info, Level};
 
 fn print_banner(show_quick_start: bool) {
-    // Espaços no top para melhor visualização das cores
+    // Spaces at the top for better color visualization
     println!();
     println!();
     println!();
 
-    // Banner do Code Report
+    // Code Report Banner
     println!(
         "{}",
         "   ██████╗ ██████╗ ██████╗ ███████╗    ██████╗ ███████╗██████╗  ██████╗ ██████╗ ████████╗"
@@ -71,7 +71,7 @@ fn print_banner(show_quick_start: bool) {
     println!();
 
     if show_quick_start {
-        // Dicas de uso para desenvolvedores
+        // Usage tips for developers
         println!("{}", "💡 Quick Start:".bright_yellow());
         println!("{}", "   ./codeql-ai -i results.json -p .".bright_white());
         println!(
@@ -95,15 +95,15 @@ struct Cli {
     #[command(subcommand)]
     command: Option<Commands>,
 
-    /// Arquivo JSON com resultados do CodeQL
+    /// CodeQL results JSON file
     #[arg(short, long, value_name = "FILE", help_heading = "INPUT")]
     input: Option<PathBuf>,
 
-    /// Diretório raiz do projeto
+    /// Project root directory
     #[arg(short, long, value_name = "PATH", help_heading = "CONFIGURATION")]
     project_root: Option<PathBuf>,
 
-    /// Arquivo de saída para o relatório
+    /// Output file for the report
     #[arg(
         short,
         long,
@@ -113,11 +113,11 @@ struct Cli {
     )]
     output: PathBuf,
 
-    /// Chave da API do OpenAI (opcional, usa OPENAI_API_KEY env var ou demo key)
+    /// OpenAI API key (optional, uses OPENAI_API_KEY env var or demo key)
     #[arg(long, value_name = "KEY", help_heading = "API")]
     openai_api_key: Option<String>,
 
-    /// Modelo do ChatGPT a ser usado
+    /// ChatGPT model to use
     #[arg(
         long,
         value_name = "MODEL",
@@ -126,7 +126,7 @@ struct Cli {
     )]
     model: String,
 
-    /// Nível de verbosidade
+    /// Verbosity level
     #[arg(
         short,
         long,
@@ -136,11 +136,11 @@ struct Cli {
     )]
     verbosity: Option<Level>,
 
-    /// Incluir sugestões de código corrigido no relatório
+    /// Include code correction suggestions in the report
     #[arg(short, long, help_heading = "ANALYSIS")]
     include_fixes: bool,
 
-    /// Nível do relatório (easy, medium, advanced)
+    /// Report level (easy, medium, advanced)
     #[arg(
         short,
         long,
@@ -153,29 +153,29 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Commands {
-    /// Gera código corrigido baseado nas vulnerabilidades encontradas
+    /// Generate corrected code based on found vulnerabilities
     Fix {
-        /// Arquivo JSON com resultados do CodeQL
+        /// CodeQL results JSON file
         #[arg(short, long, value_name = "FILE")]
         input: PathBuf,
 
-        /// Diretório raiz do projeto
+        /// Project root directory
         #[arg(short, long, value_name = "PATH")]
         project_root: PathBuf,
 
-        /// Arquivo de saída para o código corrigido
+        /// Output file for corrected code
         #[arg(short, long, value_name = "FILE", default_value = "fixed_code.py")]
         output: PathBuf,
 
-        /// Chave da API do OpenAI (opcional)
+        /// OpenAI API key (optional)
         #[arg(long, value_name = "KEY")]
         openai_api_key: Option<String>,
 
-        /// Modelo do ChatGPT a ser usado
+        /// ChatGPT model to use
         #[arg(long, value_name = "MODEL", default_value = "gpt-3.5-turbo")]
         model: String,
 
-        /// Nível de verbosidade
+        /// Verbosity level
         #[arg(short, long, value_name = "LEVEL", default_value = "info")]
         verbosity: Option<Level>,
     },
@@ -183,37 +183,37 @@ enum Commands {
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    // Parse dos argumentos CLI
+    // Parse CLI arguments
     let cli = Cli::parse();
 
-    // Configura logging se verbosidade for maior que info (incluindo -v)
+    // Configure logging if verbosity is greater than info (including -v)
     if let Some(verbosity) = cli.verbosity {
         if verbosity > Level::INFO {
             tracing_subscriber::fmt().with_max_level(verbosity).init();
         }
     }
 
-    // Mostra o banner (sem Quick Start quando há comando)
+    // Show banner (without Quick Start when there's a command)
     let show_quick_start = cli.input.is_none();
     print_banner(show_quick_start);
 
-    // Log apenas se verbosidade for maior que info (incluindo -v)
+    // Log only if verbosity is greater than info (including -v)
     if let Some(verbosity) = cli.verbosity {
         if verbosity > Level::INFO {
             info!("🚀 Code Report initialized");
         }
     }
 
-    // Obtém a chave da API do OpenAI (com fallback para desenvolvimento)
+    // Get OpenAI API key (with fallback for development)
     let openai_api_key = cli
         .openai_api_key
         .or_else(|| std::env::var("OPENAI_API_KEY").ok())
         .unwrap_or_else(|| "sk-demo-key-for-development".to_string());
 
-    // Guarda o caminho do output para usar depois
+    // Store output path for later use
     let output_path = cli.output.clone();
 
-    // Cria configuração
+    // Create configuration
     let config =
         match Config::from_env() {
             Ok(mut config) => {
@@ -246,10 +246,10 @@ async fn main() -> Result<()> {
             },
         };
 
-    // Cria o analisador (sem logs visíveis)
+    // Create analyzer (without visible logs)
     let analyzer = CodeQLAnalyzer::new(config)?;
 
-    // Verifica se foi fornecido um comando específico
+    // Check if a specific command was provided
     match &cli.command {
         Some(Commands::Fix {
             input,
@@ -259,20 +259,20 @@ async fn main() -> Result<()> {
             model,
             verbosity,
         }) => {
-            // Configura logging para o comando fix
+            // Configure logging for fix command
             if let Some(verbosity) = verbosity {
                 if *verbosity > Level::INFO {
                     tracing_subscriber::fmt().with_max_level(*verbosity).init();
                 }
             }
 
-            // Obtém a chave da API do OpenAI para o comando fix
+            // Get OpenAI API key for fix command
             let fix_openai_api_key = openai_api_key
                 .clone()
                 .or_else(|| std::env::var("OPENAI_API_KEY").ok())
                 .unwrap_or_else(|| "sk-demo-key-for-development".to_string());
 
-            // Cria configuração específica para o comando fix
+            // Create specific configuration for fix command
             let fix_config = Config {
                 openai_api_key: fix_openai_api_key,
                 model: model.clone(),
@@ -289,10 +289,10 @@ async fn main() -> Result<()> {
                 timeout_seconds: 120,
             };
 
-            // Cria o analisador para o comando fix
+            // Create analyzer for fix command
             let fix_analyzer = CodeQLAnalyzer::new(fix_config)?;
 
-            // Executa a geração de código corrigido
+            // Execute code generation
             fix_analyzer
                 .generate_fixed_code(&input.to_string_lossy(), &output.to_string_lossy())
                 .await?;
@@ -336,14 +336,14 @@ async fn main() -> Result<()> {
             return Ok(());
         }
         None => {
-            // Comportamento original para análise de relatório
+            // Original behavior for report analysis
             match &cli.input {
                 Some(input_file) => {
-                    // Executa a análise
+                    // Execute analysis
                     analyzer.analyze(&input_file.to_string_lossy()).await?;
                 }
                 None => {
-                    // Mostra mensagem de boas-vindas simplificada
+                    // Show simplified welcome message
                     println!(
                         "{}",
                         "🎯 Ready to analyze CodeQL results with AI".bright_cyan()

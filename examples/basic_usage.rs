@@ -1,77 +1,77 @@
 use codeql_chatgpt_analyzer::prelude::*;
 
-/// Exemplo básico de uso da biblioteca CodeQL ChatGPT Analyzer
+/// Basic usage example of the CodeQL ChatGPT Analyzer library
 #[tokio::main]
 async fn main() -> Result<()> {
-    // Configura logging
+    // Setup logging
     tracing_subscriber::fmt::init();
     
-    println!("🚀 Exemplo básico de uso do CodeQL ChatGPT Analyzer");
+    println!("🚀 Basic usage example of CodeQL ChatGPT Analyzer");
     
-    // 1. Carrega configuração do ambiente
+    // 1. Load configuration from environment
     let config = match Config::from_env() {
         Ok(config) => {
-            println!("✅ Configuração carregada com sucesso");
+            println!("✅ Configuration loaded successfully");
             config
         }
         Err(e) => {
-            eprintln!("❌ Erro ao carregar configuração: {}", e);
-            eprintln!("💡 Configure as variáveis de ambiente necessárias");
+            eprintln!("❌ Error loading configuration: {}", e);
+            eprintln!("💡 Configure the required environment variables");
             return Err(e);
         }
     };
     
-    // 2. Valida a configuração
+    // 2. Validate configuration
     if let Err(e) = config.validate() {
-        eprintln!("❌ Configuração inválida: {}", e);
+        eprintln!("❌ Invalid configuration: {}", e);
         return Err(e);
     }
     
-    println!("📁 Projeto: {:?}", config.project_root);
-    println!("🤖 Modelo: {}", config.model);
-    println!("📄 Saída: {:?}", config.output_file);
+    println!("📁 Project: {:?}", config.project_root);
+    println!("🤖 Model: {}", config.model);
+    println!("📄 Output: {:?}", config.output_file);
     
-    // 3. Cria o analisador
+    // 3. Create analyzer
     let analyzer = match CodeQLAnalyzer::new(config.clone()) {
         Ok(analyzer) => {
-            println!("✅ Analisador criado com sucesso");
+            println!("✅ Analyzer created successfully");
             analyzer
         }
         Err(e) => {
-            eprintln!("❌ Erro ao criar analisador: {}", e);
+            eprintln!("❌ Error creating analyzer: {}", e);
             return Err(e);
         }
     };
     
-    // 4. Executa a análise
-    println!("🔍 Iniciando análise...");
+    // 4. Execute analysis
+    println!("🔍 Starting analysis...");
     
     match analyzer.analyze("examples/sample-codeql-results.json").await {
         Ok(()) => {
-            println!("✅ Análise concluída com sucesso!");
-            println!("📄 Relatório salvo em: {:?}", config.output_file);
+            println!("✅ Analysis completed successfully!");
+            println!("📄 Report saved to: {:?}", config.output_file);
             
-            // 5. Exibe informações sobre o relatório gerado
+            // 5. Display information about the generated report
             if let Ok(content) = std::fs::read_to_string(&config.output_file) {
                 let lines: Vec<&str> = content.lines().collect();
-                println!("📊 Relatório gerado com {} linhas", lines.len());
+                println!("📊 Report generated with {} lines", lines.len());
                 
-                // Exibe algumas linhas do relatório
-                println!("\n📋 Preview do relatório:");
+                // Display some lines from the report
+                println!("\n📋 Report preview:");
                 for (i, line) in lines.iter().take(10).enumerate() {
                     println!("{:2}: {}", i + 1, line);
                 }
                 if lines.len() > 10 {
-                    println!("... (mais {} linhas)", lines.len() - 10);
+                    println!("... ({} more lines)", lines.len() - 10);
                 }
             }
         }
         Err(e) => {
-            eprintln!("❌ Erro durante a análise: {}", e);
+            eprintln!("❌ Error during analysis: {}", e);
             return Err(e);
         }
     }
     
-    println!("\n🎉 Exemplo concluído!");
+    println!("\n🎉 Example completed!");
     Ok(())
 }

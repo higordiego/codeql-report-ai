@@ -1,90 +1,42 @@
-use serde::{Deserialize, Serialize};
-use tokio::time::{sleep, Duration};
-use tracing::{debug, error, info};
+use crate::{
+    config::Config,
+    error::CodeQLError,
+    types::{ChatMessage, ChatRequest, ChatResponse},
+};
+use reqwest::Client;
+use std::time::Duration;
+use tracing::error;
 
-/// Estrutura para uma mensagem do ChatGPT
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ChatMessage {
-    pub role: String,
-    pub content: String,
-}
-
-/// Estrutura para a requisição do ChatGPT
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ChatRequest {
-    pub model: String,
-    pub messages: Vec<ChatMessage>,
-    pub temperature: f32,
-    pub max_tokens: Option<u32>,
-}
-
-/// Estrutura para a resposta do ChatGPT
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ChatResponse {
-    pub id: String,
-    pub object: String,
-    pub created: u64,
-    pub model: String,
-    pub choices: Vec<ChatChoice>,
-    pub usage: Usage,
-}
-
-/// Estrutura para uma escolha da resposta
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ChatChoice {
-    pub index: u32,
-    pub message: ChatMessage,
-    pub finish_reason: Option<String>,
-}
-
-/// Estrutura para o uso de tokens
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Usage {
-    pub prompt_tokens: u32,
-    pub completion_tokens: u32,
-    pub total_tokens: u32,
-}
-
-/// Cliente para integração com ChatGPT
+/// Client for interacting with ChatGPT API
 pub struct ChatGPTClient {
-    client: reqwest::Client,
-    config: crate::config::Config,
-    rate_limiter: tokio::sync::Mutex<()>,
+    config: Config,
+    client: Client,
 }
 
 impl ChatGPTClient {
-    /// Cria um novo cliente ChatGPT
-    pub fn new(config: crate::config::Config) -> crate::Result<Self> {
-        let client = reqwest::Client::builder()
+    /// Creates a new ChatGPT client with the given configuration
+    pub fn new(config: &Config) -> crate::Result<Self> {
+        let client = Client::builder()
             .timeout(Duration::from_secs(config.timeout_seconds))
             .build()
-            .map_err(crate::Error::Http)?;
+            .map_err(|e| {
+                CodeQLError::NetworkError(format!("Failed to create HTTP client: {}", e))
+            })?;
 
         Ok(Self {
+            config: config.clone(),
             client,
-            config,
-            rate_limiter: tokio::sync::Mutex::new(()),
         })
     }
 
-    /// Envia uma requisição para o ChatGPT
-    pub async fn send_request(&self, messages: Vec<ChatMessage>) -> crate::Result<ChatResponse> {
-        let _rate_limit_guard = self.rate_limiter.lock().await;
-
-        // Rate limiting
-        sleep(Duration::from_millis(
-            1000 / self.config.rate_limit_rps as u64,
-        ))
-        .await;
-
-        let request = ChatRequest {
+    /// Sends a request to the ChatGPT API
+    async fn send_request(&self, messages: Vec<ChatMessage>) -> crate::Result<String> {
+        let request_body = ChatRequest {
             model: self.config.model.clone(),
             messages,
             temperature: self.config.temperature,
-            max_tokens: Some(4000), // Limite razoável para respostas
+            max_tokens: 4000,
         };
-
-        debug!("Enviando requisição para ChatGPT: {:?}", request);
 
         let response = self
             .client
@@ -94,347 +46,138 @@ impl ChatGPTClient {
                 format!("Bearer {}", self.config.openai_api_key),
             )
             .header("Content-Type", "application/json")
-            .json(&request)
+            .json(&request_body)
             .send()
             .await
-            .map_err(|e| {
-                error!("Erro na requisição HTTP: {}", e);
-                crate::Error::Http(e)
-            })?;
+            .map_err(|e| CodeQLError::NetworkError(format!("Request failed: {}", e)))?;
 
         if !response.status().is_success() {
-            let status = response.status();
             let error_text = response
                 .text()
                 .await
-                .unwrap_or_else(|_| "Erro desconhecido".to_string());
-
-            error!("Erro na resposta do ChatGPT: {} - {}", status, error_text);
-
-            return match status.as_u16() {
-                429 => Err(crate::Error::RateLimit),
-                401 => Err(crate::Error::Authentication(
-                    "Chave API inválida".to_string(),
-                )),
-                400 => Err(crate::Error::ChatGPT(format!(
-                    "Requisição inválida: {}",
-                    error_text
-                ))),
-                _ => Err(crate::Error::ChatGPT(format!(
-                    "Erro HTTP {}: {}",
-                    status, error_text
-                ))),
-            };
+                .unwrap_or_else(|_| "Unknown error".to_string());
+            error!("ChatGPT API error: {}", error_text);
+            return Err(CodeQLError::ApiError(format!(
+                "ChatGPT API error: {}",
+                error_text
+            )));
         }
 
-        let chat_response: ChatResponse = response.json().await.map_err(|e| {
-            error!("Erro ao deserializar resposta: {}", e);
-            crate::Error::Http(e)
-        })?;
+        let chat_response: ChatResponse = response
+            .json()
+            .await
+            .map_err(|e| CodeQLError::JsonParseError(format!("Failed to parse response: {}", e)))?;
 
-        info!(
-            "Resposta recebida do ChatGPT. Tokens usados: {}/{}",
-            chat_response.usage.total_tokens, self.config.max_payload_tokens
-        );
-
-        Ok(chat_response)
+        if let Some(choice) = chat_response.choices.first() {
+            if let Some(message) = &choice.message {
+                Ok(message.content.clone())
+            } else {
+                Err(CodeQLError::ApiError(
+                    "No message content in response".to_string(),
+                ))
+            }
+        } else {
+            Err(CodeQLError::ApiError("No choices in response".to_string()))
+        }
     }
 
-    /// Analisa as falhas do CodeQL com o ChatGPT e retorna relatório Markdown
-    pub async fn analyze_codeql_findings(
+    /// Generates a medium-level report using ChatGPT
+    pub async fn generate_medium_report(
         &self,
         _findings: &[crate::types::CodeQLResult],
-        _code_snippets: &[(String, String)], // (file_path, code_content)
+        code_snippets: &[(String, String)],
         full_file_content: &str,
         original_json: &str,
-        include_fixes: bool,
     ) -> crate::Result<String> {
         let system_message = ChatMessage {
             role: "system".to_string(),
-            content: self.get_system_prompt(include_fixes).to_string(),
+            content: self.get_medium_report_system_prompt().to_string(),
         };
 
         let user_message = ChatMessage {
             role: "user".to_string(),
             content: format!(
-                r#"Analise o seguinte JSON do CodeQL e o arquivo de código para gerar um relatório completo de segurança.
+                r#"Analyze the following CodeQL JSON and code file to generate a detailed security report.
 
-JSON ORIGINAL DO CODEQL:
-```json
+CodeQL Results JSON:
 {}
-```
 
-ARQUIVO DE CÓDIGO ANALISADO:
-```python
+Full File Content:
 {}
-```
 
-INSTRUÇÕES ESPECÍFICAS:
-1. Analise o JSON do CodeQL para identificar os TIPOS de vulnerabilidades
-2. AGRUPE vulnerabilidades do mesmo tipo - NÃO repita a mesma falha múltiplas vezes
-3. Para cada tipo de vulnerabilidade, liste TODAS as linhas afetadas em uma única seção
-4. Use as informações do JSON (mensagens, severidade, localização) para explicar cada problema
-5. Inclua as explicações e detalhes que o CodeQL fornece
-6. OBRIGATÓRIO: Para cada linha afetada, SEMPRE mostre o código real da linguagem
-7. Use o código real do arquivo para mostrar as linhas problemáticas
-8. Inclua recomendações baseadas nas informações do CodeQL{}
+Code Snippets from Problematic Lines:
+{}
 
-FORMATO OBRIGATÓRIO:
-- Use EXATAMENTE o formato especificado no prompt do sistema
-- Inclua apenas os títulos e seções: Resumo Executivo, Estatísticas, Achados Detalhados{}
-- Para cada vulnerabilidade, use o formato: **Vulnerabilidade: [nome]**, **Problema:**, **Severidade:**, **Linhas Afetadas:**, **Código das Linhas:**, **Explicação:**{}
-- SEMPRE mostre o código real das linhas afetadas, não apenas números de linha
-- Agrupe vulnerabilidades do mesmo tipo em uma única entrada
+Please generate a comprehensive security report that includes:
+1. Executive Summary
+2. Statistics by severity and rule type
+3. Detailed analysis of each finding
+4. Code snippets showing the problematic lines
+5. Security implications and risks
+6. Recommendations for fixing each vulnerability
 
-RESTRIÇÕES IMPORTANTES:
-- NÃO inclua seções de "Recomendações" ou "Plano de Ação"
-- MOSTRE APENAS o código original das linhas apontadas pelo CodeQL
-- Use EXATAMENTE as linhas de código que o CodeQL identificou como problemáticas
-- NÃO inclua emojis ou formatação colorida no relatório"#,
+Format the report in Markdown with clear sections and code blocks."#,
                 original_json,
                 full_file_content,
-                if include_fixes {
-                    "\n9. INCLUA sugestões de código corrigido e seguro para cada vulnerabilidade"
-                } else {
-                    ""
-                },
-                if include_fixes {
-                    ", Código Corrigido (Seguro)"
-                } else {
-                    ""
-                },
-                if include_fixes {
-                    ", **Código Corrigido (Seguro):**"
-                } else {
-                    ""
-                }
+                self.format_code_snippets(code_snippets)
             ),
         };
 
         let messages = vec![system_message, user_message];
-
         let response = self.send_request(messages).await?;
-
-        if let Some(choice) = response.choices.first() {
-            let content = &choice.message.content;
-            return Ok(content.clone());
-        }
-
-        Err(crate::Error::ChatGPT(
-            "Nenhuma resposta válida recebida".to_string(),
-        ))
+        Ok(response)
     }
 
-    /// Analisa as falhas do CodeQL com ChatGPT para relatório Advanced (com correções)
-    pub async fn analyze_codeql_findings_advanced(
+    /// Generates an advanced report with correction recommendations using ChatGPT
+    pub async fn generate_advanced_report(
         &self,
         _findings: &[crate::types::CodeQLResult],
-        _code_snippets: &[(String, String)],
+        code_snippets: &[(String, String)],
         full_file_content: &str,
         original_json: &str,
     ) -> crate::Result<String> {
         let system_message = ChatMessage {
             role: "system".to_string(),
-            content: self.get_advanced_system_prompt().to_string(),
+            content: self.get_advanced_report_system_prompt().to_string(),
         };
 
         let user_message = ChatMessage {
             role: "user".to_string(),
             content: format!(
-                r#"Analise o seguinte JSON do CodeQL e o arquivo de código para gerar um relatório avançado de segurança com recomendações de correção.
+                r#"Analyze the following CodeQL JSON and code file to generate an advanced security report with correction recommendations.
 
-JSON ORIGINAL DO CODEQL:
-```json
+CodeQL Results JSON:
 {}
-```
 
-ARQUIVO DE CÓDIGO ANALISADO:
-```python
+Full File Content:
 {}
-```
 
-INSTRUÇÕES ESPECÍFICAS:
-1. Analise o JSON do CodeQL para identificar os TIPOS de vulnerabilidades
-2. AGRUPE vulnerabilidades do mesmo tipo - NÃO repita a mesma falha múltiplas vezes
-3. Para cada tipo de vulnerabilidade, liste TODAS as linhas afetadas em uma única seção
-4. Use as informações do JSON (mensagens, severidade, localização) para explicar cada problema
-5. Inclua as explicações e detalhes que o CodeQL fornece
-6. OBRIGATÓRIO: Para cada linha afetada, SEMPRE mostre o código real da linguagem
-7. Use o código real do arquivo para mostrar as linhas problemáticas
-8. INCLUA recomendações de correção específicas e práticas para cada vulnerabilidade
+Code Snippets from Problematic Lines:
+{}
 
-FORMATO OBRIGATÓRIO:
-- Use EXATAMENTE o formato especificado no prompt do sistema
-- Inclua todos os títulos e seções: Resumo Executivo, Estatísticas, Achados Detalhados, Recomendações de Correção
-- Para cada vulnerabilidade, use o formato: **Vulnerabilidade: [nome]**, **Problema:**, **Severidade:**, **Linhas Afetadas:**, **Código das Linhas:**, **Explicação:**, **Recomendação de Correção:**
-- SEMPRE mostre o código real das linhas afetadas, não apenas números de linha
-- Agrupe vulnerabilidades do mesmo tipo em uma única entrada
+Please generate a comprehensive security report that includes:
+1. Executive Summary
+2. Statistics by severity and rule type
+3. Detailed analysis of each finding
+4. Code snippets showing the problematic lines
+5. Security implications and risks
+6. Specific correction recommendations for each vulnerability
+7. Code examples showing how to fix each issue
+8. General security best practices
 
-RESTRIÇÕES IMPORTANTES:
-- SEMPRE inclua seções de "Recomendações de Correção" com sugestões práticas
-- MOSTRE o código original das linhas apontadas pelo CodeQL
-- Use EXATAMENTE as linhas de código que o CodeQL identificou como problemáticas
-- NÃO inclua emojis ou formatação colorida no relatório
-- Forneça recomendações de correção ACEITÁVEIS e PRÁTICAS"#,
-                original_json, full_file_content
+Format the report in Markdown with clear sections, code blocks, and actionable recommendations."#,
+                original_json,
+                full_file_content,
+                self.format_code_snippets(code_snippets)
             ),
         };
 
         let messages = vec![system_message, user_message];
-
         let response = self.send_request(messages).await?;
-
-        if let Some(choice) = response.choices.first() {
-            let content = &choice.message.content;
-            return Ok(content.clone());
-        }
-
-        Err(crate::Error::ChatGPT(
-            "Nenhuma resposta válida recebida".to_string(),
-        ))
+        Ok(response)
     }
 
-    /// Obtém o prompt do sistema
-    fn get_system_prompt(&self, include_fixes: bool) -> &str {
-        if include_fixes {
-            r#"Você é um especialista em segurança de código e análise estática. Sua tarefa é analisar o JSON do CodeQL e gerar um relatório completo de segurança.
-
-IMPORTANTE: Você deve retornar um relatório completo formatado em MARKDOWN, seguindo EXATAMENTE este formato:
-
-# Relatório de Segurança - Análise de Código com CodeQL
-
-## Resumo Executivo
-[Análise geral baseada no JSON do CodeQL - explique os tipos de vulnerabilidades encontradas e seu impacto]
-
-## Estatísticas
-[Baseadas nos dados do JSON - agrupe por tipo de vulnerabilidade, ex: "- Vulnerabilidades de Command Injection via subprocess: X ocorrências"]
-
-## Achados Detalhados
-[Para cada TIPO de vulnerabilidade encontrado, use este formato exato:]
-
-1. **Vulnerabilidade: [nome exato da vulnerabilidade]**
-   - **Problema:** [descrição exata do problema conforme o JSON]
-   - **Severidade:** [severidade conforme o JSON]
-   - **Linhas Afetadas:**
-     - Linha X: [descrição da linha]
-     - Linha Y: [descrição da linha]
-     - [continue para todas as linhas afetadas]
-   - **Código das Linhas:**
-   ```[linguagem]
-   [código real das linhas afetadas, exatamente como aparece no arquivo]
-   ```
-   - **Explicação:** [explicação baseada nas informações do JSON]
-   - **Código Corrigido (Seguro):**
-   ```[linguagem]
-   [código corrigido e seguro para resolver a vulnerabilidade]
-   ```
-
-REGRAS OBRIGATÓRIAS:
-1. NÃO REPITA a mesma vulnerabilidade múltiplas vezes - agrupe todas as ocorrências do mesmo tipo
-2. Para cada tipo de vulnerabilidade, liste TODAS as linhas afetadas em uma única seção
-3. SEMPRE mostre o código real das linhas afetadas, não apenas números de linha
-4. Use o formato exato mostrado acima, incluindo os títulos e estrutura
-5. Organize por TIPO de vulnerabilidade, não por linha individual
-6. Inclua as explicações e detalhes que o CodeQL fornece no JSON
-7. SEMPRE inclua a seção "Código Corrigido (Seguro)" com o código corrigido
-8. Use EXATAMENTE as linhas de código que o CodeQL identificou como problemáticas
-9. NÃO inclua seções de "Recomendações" ou "Plano de Ação"
-10. NÃO inclua emojis ou formatação colorida no relatório"#
-        } else {
-            r#"Você é um especialista em segurança de código e análise estática. Sua tarefa é analisar o JSON do CodeQL e gerar um relatório completo de segurança.
-
-IMPORTANTE: Você deve retornar um relatório completo formatado em MARKDOWN, seguindo EXATAMENTE este formato:
-
-# Relatório de Segurança - Análise de Código com CodeQL
-
-## Resumo Executivo
-[Análise geral baseada no JSON do CodeQL - explique os tipos de vulnerabilidades encontradas e seu impacto]
-
-## Estatísticas
-[Baseadas nos dados do JSON - agrupe por tipo de vulnerabilidade, ex: "- Vulnerabilidades de Command Injection via subprocess: X ocorrências"]
-
-## Achados Detalhados
-[Para cada TIPO de vulnerabilidade encontrado, use este formato exato:]
-
-1. **Vulnerabilidade: [nome exato da vulnerabilidade]**
-   - **Problema:** [descrição exata do problema conforme o JSON]
-   - **Severidade:** [severidade conforme o JSON]
-   - **Linhas Afetadas:**
-     - Linha X: [descrição da linha]
-     - Linha Y: [descrição da linha]
-     - [continue para todas as linhas afetadas]
-   - **Código das Linhas:**
-   ```[linguagem]
-   [código real das linhas afetadas, exatamente como aparece no arquivo]
-   ```
-   - **Explicação:** [explicação baseada nas informações do JSON]
-
-REGRAS OBRIGATÓRIAS:
-1. NÃO REPITA a mesma vulnerabilidade múltiplas vezes - agrupe todas as ocorrências do mesmo tipo
-2. Para cada tipo de vulnerabilidade, liste TODAS as linhas afetadas em uma única seção
-3. SEMPRE mostre o código real das linhas afetadas, não apenas números de linha
-4. Use o formato exato mostrado acima, incluindo os títulos e estrutura
-5. Organize por TIPO de vulnerabilidade, não por linha individual
-6. Inclua as explicações e detalhes que o CodeQL fornece no JSON
-7. NÃO inclua seções de "Correções de Código Sugeridas" ou "Código Corrigido"
-8. MOSTRE APENAS o código original das linhas apontadas pelo CodeQL, sem sugestões de correção
-9. Use EXATAMENTE as linhas de código que o CodeQL identificou como problemáticas
-10. NÃO inclua seções de "Recomendações" ou "Plano de Ação"
-11. NÃO inclua emojis ou formatação colorida no relatório"#
-        }
-    }
-
-    /// Obtém o prompt do sistema para relatório Advanced
-    fn get_advanced_system_prompt(&self) -> &str {
-        r#"Você é um especialista em segurança de código e análise estática. Sua tarefa é analisar o JSON do CodeQL e gerar um relatório avançado de segurança com recomendações de correção.
-
-IMPORTANTE: Você deve retornar um relatório completo formatado em MARKDOWN, seguindo EXATAMENTE este formato:
-
-# Relatório de Segurança - Análise de Código com CodeQL
-
-## Resumo Executivo
-[Análise geral baseada no JSON do CodeQL - explique os tipos de vulnerabilidades encontradas e seu impacto]
-
-## Estatísticas
-[Baseadas nos dados do JSON - agrupe por tipo de vulnerabilidade, ex: "- Vulnerabilidades de Command Injection via subprocess: X ocorrências"]
-
-## Achados Detalhados
-[Para cada TIPO de vulnerabilidade encontrado, use este formato exato:]
-
-1. **Vulnerabilidade: [nome exato da vulnerabilidade]**
-   - **Problema:** [descrição exata do problema conforme o JSON]
-   - **Severidade:** [severidade conforme o JSON]
-   - **Linhas Afetadas:**
-     - Linha X: [descrição da linha]
-     - Linha Y: [descrição da linha]
-     - [continue para todas as linhas afetadas]
-   - **Código das Linhas:**
-   ```[linguagem]
-   [código real das linhas afetadas, exatamente como aparece no arquivo]
-   ```
-   - **Explicação:** [explicação baseada nas informações do JSON]
-   - **Recomendação de Correção:**
-   ```[linguagem]
-   [código corrigido e seguro para resolver a vulnerabilidade]
-   ```
-
-## Recomendações de Correção
-[Resumo das principais recomendações de correção para todas as vulnerabilidades encontradas]
-
-REGRAS OBRIGATÓRIAS:
-1. NÃO REPITA a mesma vulnerabilidade múltiplas vezes - agrupe todas as ocorrências do mesmo tipo
-2. Para cada tipo de vulnerabilidade, liste TODAS as linhas afetadas em uma única seção
-3. SEMPRE mostre o código real das linhas afetadas, não apenas números de linha
-4. Use o formato exato mostrado acima, incluindo os títulos e estrutura
-5. Organize por TIPO de vulnerabilidade, não por linha individual
-6. Inclua as explicações e detalhes que o CodeQL fornece no JSON
-7. SEMPRE inclua a seção "Recomendação de Correção" com código corrigido
-8. Use EXATAMENTE as linhas de código que o CodeQL identificou como problemáticas
-9. NÃO inclua emojis ou formatação colorida no relatório
-10. Forneça recomendações de correção ACEITÁVEIS e PRÁTICAS"#
-    }
-
-    /// Gera código corrigido baseado nas vulnerabilidades encontradas
+    /// Generates corrected code based on found vulnerabilities
     pub async fn generate_fixed_code(
         &self,
         _findings: &[crate::types::CodeQLResult],
@@ -450,100 +193,173 @@ REGRAS OBRIGATÓRIAS:
         let user_message = ChatMessage {
             role: "user".to_string(),
             content: format!(
-                r#"Analise o seguinte JSON do CodeQL e o arquivo de código para gerar um código corrigido e seguro.
+                r#"Analyze the following CodeQL JSON and code file to generate corrected and secure code.
 
-JSON ORIGINAL DO CODEQL:
-```json
+CodeQL Results JSON:
 {}
-```
 
-ARQUIVO DE CÓDIGO ANALISADO:
-```python
+Full File Content:
 {}
-```
 
-INSTRUÇÕES ESPECÍFICAS:
-1. Analise o JSON do CodeQL para identificar TODAS as vulnerabilidades
-2. Identifique as linhas problemáticas no código
-3. Gere um código COMPLETO e CORRIGIDO que resolve TODAS as vulnerabilidades
-4. Mantenha a funcionalidade original do código
-5. Implemente as melhores práticas de segurança
-6. Adicione validações de entrada adequadas
-7. Use bibliotecas e métodos seguros
-8. Inclua tratamento de erros robusto
-9. Adicione logging para auditoria quando apropriado
-10. Comente o código explicando as correções feitas
+Please generate corrected code that:
+1. Addresses all security vulnerabilities identified in the CodeQL results
+2. Implements proper input validation
+3. Uses secure coding practices
+4. Includes logging for audit purposes
+5. Handles exceptions properly
+6. Maintains the original functionality while being secure
 
-FORMATO OBRIGATÓRIO:
-- Retorne APENAS o código Python corrigido
-- NÃO inclua explicações em markdown
-- NÃO inclua comentários sobre o processo
-- O código deve ser executável e completo
-- Inclua todos os imports necessários
-- Mantenha a estrutura e funcionalidade original
-- Adicione comentários explicando as correções de segurança
-
-REGRAS DE SEGURANÇA:
-- NUNCA use `shell=True` com entrada do usuário
-- SEMPRE valide entrada antes de processar
-- Use listas de comandos permitidos quando apropriado
-- Implemente timeouts para operações perigosas
-- Use métodos seguros de execução de comandos
-- Trate exceções adequadamente
-- Implemente logging para auditoria"#,
+Return ONLY the corrected Python code without any explanations or markdown formatting."#,
                 original_json, full_file_content
             ),
         };
 
         let messages = vec![system_message, user_message];
-
         let response = self.send_request(messages).await?;
-
-        if let Some(choice) = response.choices.first() {
-            let content = &choice.message.content;
-            return Ok(content.clone());
-        }
-
-        Err(crate::Error::ChatGPT(
-            "Nenhuma resposta válida recebida".to_string(),
-        ))
+        Ok(response)
     }
 
-    /// Obtém o prompt do sistema para geração de código corrigido
+    /// Gets the system prompt for medium-level reports
+    fn get_medium_report_system_prompt(&self) -> &str {
+        r#"You are a cybersecurity expert and code analysis specialist. Your task is to analyze CodeQL static analysis results and generate comprehensive security reports.
+
+Key Responsibilities:
+- Analyze security vulnerabilities in code
+- Provide detailed explanations of security risks
+- Generate professional security reports
+- Include relevant code snippets and context
+- Explain the impact and severity of findings
+
+Report Format Requirements:
+- Use Markdown formatting
+- Include clear section headers
+- Provide code blocks for code snippets
+- Use bullet points for lists
+- Include severity indicators
+- Group findings by type when appropriate
+
+Security Focus Areas:
+- Command injection vulnerabilities
+- SQL injection issues
+- Path traversal problems
+- Cross-site scripting (XSS)
+- Unsafe deserialization
+- Hardcoded secrets
+- Input validation issues
+
+Response Guidelines:
+- Be professional and technical
+- Provide actionable insights
+- Include security context
+- Explain potential impacts
+- Suggest general remediation approaches
+- Maintain objectivity and accuracy"#
+    }
+
+    /// Gets the system prompt for advanced reports
+    fn get_advanced_report_system_prompt(&self) -> &str {
+        r#"You are a senior cybersecurity expert and secure coding specialist. Your task is to analyze CodeQL static analysis results and generate advanced security reports with specific correction recommendations.
+
+Key Responsibilities:
+- Analyze security vulnerabilities in code
+- Provide detailed explanations of security risks
+- Generate professional security reports with specific fixes
+- Include relevant code snippets and context
+- Explain the impact and severity of findings
+- Provide specific code correction examples
+
+Report Format Requirements:
+- Use Markdown formatting
+- Include clear section headers
+- Provide code blocks for code snippets
+- Use bullet points for lists
+- Include severity indicators
+- Group findings by type when appropriate
+- Include "Correction Recommendation" section for each finding
+- Include "Correction Recommendations" general section
+
+Security Focus Areas:
+- Command injection vulnerabilities
+- SQL injection issues
+- Path traversal problems
+- Cross-site scripting (XSS)
+- Unsafe deserialization
+- Hardcoded secrets
+- Input validation issues
+
+Correction Guidelines:
+- Provide specific code examples for fixes
+- Explain why the fix works
+- Include input validation examples
+- Show secure coding patterns
+- Demonstrate proper error handling
+- Include logging and audit considerations
+
+Response Guidelines:
+- Be professional and technical
+- Provide actionable insights with specific code
+- Include security context and explanations
+- Explain potential impacts and risks
+- Provide detailed remediation approaches
+- Include code examples for each fix
+- Maintain objectivity and accuracy"#
+    }
+
+    /// Gets the system prompt for code correction
     fn get_code_fix_system_prompt(&self) -> &str {
-        r#"Você é um especialista em segurança de código e desenvolvimento Python. Sua tarefa é analisar vulnerabilidades de segurança identificadas pelo CodeQL e gerar código corrigido e seguro.
+        r#"You are a security and Python development expert. Your task is to analyze security vulnerabilities identified by CodeQL and generate corrected and secure code.
 
-REGRAS OBRIGATÓRIAS:
-1. Analise TODAS as vulnerabilidades identificadas no JSON do CodeQL
-2. Identifique as linhas problemáticas no código original
-3. Gere código Python COMPLETO e CORRIGIDO
-4. Mantenha a funcionalidade original do código
-5. Implemente as melhores práticas de segurança
-6. Adicione validações de entrada adequadas
-7. Use bibliotecas e métodos seguros
-8. Inclua tratamento de erros robusto
-9. Adicione logging para auditoria quando apropriado
-10. Comente o código explicando as correções de segurança
+Key Responsibilities:
+- Analyze security vulnerabilities in the provided code
+- Generate corrected code that addresses all identified issues
+- Implement security best practices
+- Maintain original functionality while improving security
 
-FORMATO DE RESPOSTA:
-- Retorne APENAS o código Python corrigido
-- NÃO inclua explicações em markdown
-- NÃO inclua comentários sobre o processo
-- O código deve ser executável e completo
-- Inclua todos os imports necessários
-- Mantenha a estrutura e funcionalidade original
-- Adicione comentários explicando as correções de segurança
+Security Requirements:
+- Implement proper input validation
+- Use secure command execution (subprocess.run with shell=False)
+- Add input sanitization
+- Include logging for audit purposes
+- Handle exceptions properly
+- Use parameterized queries for database operations
+- Validate file paths and prevent path traversal
+- Implement proper error handling without information disclosure
 
-PRINCÍPIOS DE SEGURANÇA:
-- NUNCA use `shell=True` com entrada do usuário
-- SEMPRE valide entrada antes de processar
-- Use listas de comandos permitidos quando apropriado
-- Implemente timeouts para operações perigosas
-- Use métodos seguros de execução de comandos
-- Trate exceções adequadamente
-- Implemente logging para auditoria
-- Use `shlex.split()` para dividir comandos de forma segura
-- Implemente validação de caracteres perigosos
-- Use `subprocess.run()` com `shell=False`"#
+Code Generation Rules:
+- Return ONLY the corrected Python code
+- Do not include any explanations, comments, or markdown
+- Maintain the original function structure and purpose
+- Add necessary imports for security features
+- Include logging configuration
+- Add input validation functions
+- Use secure coding patterns
+- Include timeout mechanisms for external operations
+
+Security Patterns to Implement:
+- Input validation with regex patterns
+- Command allowlist for subprocess operations
+- Path validation and sanitization
+- Exception handling with proper logging
+- Timeout mechanisms for external calls
+- Secure file operations
+- Parameterized database queries
+
+Response Format:
+- Return ONLY the corrected Python code
+- No explanations, comments, or markdown formatting
+- Complete, executable Python code
+- Include all necessary imports and functions"#
+    }
+
+    /// Formats code snippets for inclusion in prompts
+    fn format_code_snippets(&self, code_snippets: &[(String, String)]) -> String {
+        let mut formatted = String::new();
+        for (file_path, snippet) in code_snippets {
+            formatted.push_str(&format!("File: {}\n", file_path));
+            formatted.push_str("```python\n");
+            formatted.push_str(snippet);
+            formatted.push_str("\n```\n\n");
+        }
+        formatted
     }
 }

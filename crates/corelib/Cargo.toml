@@ -3,7 +3,7 @@ name = "codeql-corelib"
 version.workspace = true
 edition.workspace = true
 authors.workspace = true
-description = "Biblioteca core para análise de resultados CodeQL com integração ChatGPT"
+description = "Core library for CodeQL results analysis with ChatGPT integration"
 license.workspace = true
 repository.workspace = true
 keywords.workspace = true
@@ -24,6 +24,7 @@ sha2.workspace = true
 tokio-util.workspace = true
 chrono.workspace = true
 colored.workspace = true
+regex.workspace = true
 
 [lib]
 name = "codeql_corelib"

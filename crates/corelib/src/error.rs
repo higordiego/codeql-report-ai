@@ -1,44 +1,71 @@
-use thiserror::Error;
+use std::fmt;
 
-/// Tipo de erro personalizado para a biblioteca
-#[derive(Error, Debug)]
-pub enum Error {
-    #[error("Erro de I/O: {0}")]
-    Io(#[from] std::io::Error),
+/// Custom error type for CodeQL analysis operations
+#[derive(Debug)]
+pub enum CodeQLError {
+    /// Configuration error
+    ConfigError(String),
 
-    #[error("Erro de JSON: {0}")]
-    Json(#[from] serde_json::Error),
+    /// File read error
+    FileReadError(String),
 
-    #[error("Erro de requisição HTTP: {0}")]
-    Http(#[from] reqwest::Error),
+    /// File write error
+    FileWriteError(String),
 
-    #[error("Erro de configuração: {0}")]
-    Config(String),
+    /// JSON parsing error
+    JsonParseError(String),
 
-    #[error("Erro do CodeQL: {0}")]
-    CodeQL(String),
+    /// Network/HTTP error
+    NetworkError(String),
 
-    #[error("Erro do ChatGPT: {0}")]
-    ChatGPT(String),
+    /// API error from external services
+    ApiError(String),
 
-    #[error("Arquivo não encontrado: {0}")]
-    FileNotFound(String),
+    /// IO error
+    IoError(std::io::Error),
 
-    #[error("Formato inválido: {0}")]
-    InvalidFormat(String),
+    /// Serialization error
+    SerializationError(serde_json::Error),
 
-    #[error("Rate limit excedido")]
-    RateLimit,
-
-    #[error("Token limit excedido")]
-    TokenLimit,
-
-    #[error("Erro de autenticação: {0}")]
-    Authentication(String),
-
-    #[error("Erro interno: {0}")]
-    Internal(String),
+    /// HTTP client error
+    HttpError(reqwest::Error),
 }
 
-/// Tipo de resultado para a biblioteca
-pub type Result<T> = std::result::Result<T, Error>;
+impl fmt::Display for CodeQLError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            CodeQLError::ConfigError(msg) => write!(f, "Configuration error: {}", msg),
+            CodeQLError::FileReadError(msg) => write!(f, "File read error: {}", msg),
+            CodeQLError::FileWriteError(msg) => write!(f, "File write error: {}", msg),
+            CodeQLError::JsonParseError(msg) => write!(f, "JSON parsing error: {}", msg),
+            CodeQLError::NetworkError(msg) => write!(f, "Network error: {}", msg),
+            CodeQLError::ApiError(msg) => write!(f, "API error: {}", msg),
+            CodeQLError::IoError(err) => write!(f, "IO error: {}", err),
+            CodeQLError::SerializationError(err) => write!(f, "Serialization error: {}", err),
+            CodeQLError::HttpError(err) => write!(f, "HTTP error: {}", err),
+        }
+    }
+}
+
+impl std::error::Error for CodeQLError {}
+
+impl From<std::io::Error> for CodeQLError {
+    fn from(err: std::io::Error) -> Self {
+        CodeQLError::IoError(err)
+    }
+}
+
+impl From<serde_json::Error> for CodeQLError {
+    fn from(err: serde_json::Error) -> Self {
+        CodeQLError::SerializationError(err)
+    }
+}
+
+impl From<reqwest::Error> for CodeQLError {
+    fn from(err: reqwest::Error) -> Self {
+        CodeQLError::HttpError(err)
+    }
+}
+
+/// Result type for CodeQL operations
+pub type Result<T> = std::result::Result<T, CodeQLError>;

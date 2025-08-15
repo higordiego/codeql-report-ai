@@ -1,180 +1,190 @@
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
-/// Configuração para a análise de CodeQL com ChatGPT
+/// Configuration for the CodeQL analyzer
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Config {
-    /// Chave da API do OpenAI
+    /// OpenAI API key for ChatGPT integration
     pub openai_api_key: String,
 
-    /// URL base da API do OpenAI
-    #[serde(default = "default_openai_url")]
-    pub openai_base_url: String,
-
-    /// Modelo do ChatGPT a ser usado
-    #[serde(default = "default_model")]
+    /// ChatGPT model to use (e.g., "gpt-3.5-turbo", "gpt-4")
     pub model: String,
 
-    /// Temperatura para geração de respostas
-    #[serde(default = "default_temperature")]
-    pub temperature: f32,
-
-    /// Diretório raiz do projeto
+    /// Project root directory for analysis
     pub project_root: PathBuf,
 
-    /// Tamanho máximo de arquivo em bytes
-    #[serde(default = "default_max_file_bytes")]
-    pub max_file_bytes: usize,
-
-    /// Limite total de tokens para o payload
-    #[serde(default = "default_max_payload_tokens")]
-    pub max_payload_tokens: usize,
-
-    /// Alvo de tokens por chunk
-    #[serde(default = "default_chunk_target_tokens")]
-    pub chunk_target_tokens: usize,
-
-    /// Rate limit em requisições por segundo
-    #[serde(default = "default_rate_limit_rps")]
-    pub rate_limit_rps: u32,
-
-    /// Timeout para requisições HTTP em segundos
-    #[serde(default = "default_timeout_seconds")]
-    pub timeout_seconds: u64,
-
-    /// Arquivo de saída para o relatório Markdown
+    /// Output file path for the generated report
     pub output_file: PathBuf,
 
-    /// Incluir sugestões de código corrigido no relatório
-    #[serde(default = "default_include_fixes")]
+    /// Whether to include code correction suggestions in the report
     pub include_fixes: bool,
 
-    /// Nível do relatório (easy, medium, advanced)
-    #[serde(default = "default_report_level")]
+    /// Report level (easy, medium, advanced)
     pub report_level: String,
+
+    /// OpenAI API base URL
+    pub openai_base_url: String,
+
+    /// Temperature setting for ChatGPT (0.0 to 2.0)
+    pub temperature: f32,
+
+    /// Maximum file size in bytes for processing
+    pub max_file_bytes: usize,
+
+    /// Maximum payload tokens for API requests
+    pub max_payload_tokens: usize,
+
+    /// Target tokens per chunk for processing
+    pub chunk_target_tokens: usize,
+
+    /// Rate limit requests per second
+    pub rate_limit_rps: u32,
+
+    /// Timeout in seconds for API requests
+    pub timeout_seconds: u64,
+}
+
+impl Default for Config {
+    fn default() -> Self {
+        Self {
+            openai_api_key: "sk-demo-key-for-development".to_string(),
+            model: "gpt-3.5-turbo".to_string(),
+            project_root: std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")),
+            output_file: PathBuf::from("codeql-analysis-report.md"),
+            include_fixes: false,
+            report_level: "medium".to_string(),
+            openai_base_url: "https://api.openai.com/v1/chat/completions".to_string(),
+            temperature: 0.8,
+            max_file_bytes: 350000,
+            max_payload_tokens: 120000,
+            chunk_target_tokens: 3000,
+            rate_limit_rps: 30,
+            timeout_seconds: 120,
+        }
+    }
 }
 
 impl Config {
-    /// Cria uma nova configuração a partir de variáveis de ambiente
+    /// Creates a new configuration from environment variables
     pub fn from_env() -> crate::Result<Self> {
         let openai_api_key = std::env::var("OPENAI_API_KEY")
-            .map_err(|_| crate::Error::Config("OPENAI_API_KEY não encontrada".to_string()))?;
+            .unwrap_or_else(|_| "sk-demo-key-for-development".to_string());
 
-        let project_root = std::env::var("PROJECT_ROOT")
-            .map(PathBuf::from)
-            .unwrap_or_else(|_| std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")));
+        let model = std::env::var("OPENAI_MODEL").unwrap_or_else(|_| "gpt-3.5-turbo".to_string());
 
-        let output_file = std::env::var("OUTPUT_FILE")
-            .map(PathBuf::from)
-            .unwrap_or_else(|_| PathBuf::from("codeql-analysis-report.md"));
+        let project_root = std::env::current_dir().map_err(|e| {
+            crate::error::CodeQLError::ConfigError(format!(
+                "Failed to get current directory: {}",
+                e
+            ))
+        })?;
+
+        let output_file = PathBuf::from(
+            std::env::var("OUTPUT_FILE")
+                .unwrap_or_else(|_| "codeql-analysis-report.md".to_string()),
+        );
+
+        let include_fixes = std::env::var("INCLUDE_FIXES")
+            .unwrap_or_else(|_| "false".to_string())
+            .parse()
+            .unwrap_or(false);
+
+        let report_level = std::env::var("REPORT_LEVEL").unwrap_or_else(|_| "medium".to_string());
+
+        let openai_base_url = std::env::var("OPENAI_BASE_URL")
+            .unwrap_or_else(|_| "https://api.openai.com/v1/chat/completions".to_string());
+
+        let temperature = std::env::var("OPENAI_TEMPERATURE")
+            .unwrap_or_else(|_| "0.8".to_string())
+            .parse()
+            .unwrap_or(0.8);
+
+        let max_file_bytes = std::env::var("MAX_FILE_BYTES")
+            .unwrap_or_else(|_| "350000".to_string())
+            .parse()
+            .unwrap_or(350000);
+
+        let max_payload_tokens = std::env::var("MAX_PAYLOAD_TOKENS")
+            .unwrap_or_else(|_| "120000".to_string())
+            .parse()
+            .unwrap_or(120000);
+
+        let chunk_target_tokens = std::env::var("CHUNK_TARGET_TOKENS")
+            .unwrap_or_else(|_| "3000".to_string())
+            .parse()
+            .unwrap_or(3000);
+
+        let rate_limit_rps = std::env::var("RATE_LIMIT_RPS")
+            .unwrap_or_else(|_| "30".to_string())
+            .parse()
+            .unwrap_or(30);
+
+        let timeout_seconds = std::env::var("TIMEOUT_SECONDS")
+            .unwrap_or_else(|_| "120".to_string())
+            .parse()
+            .unwrap_or(120);
 
         Ok(Config {
             openai_api_key,
-            openai_base_url: std::env::var("OPENAI_BASE_URL")
-                .unwrap_or_else(|_| default_openai_url()),
-            model: std::env::var("OPENAI_MODEL").unwrap_or_else(|_| default_model()),
-            temperature: std::env::var("OPENAI_TEMPERATURE")
-                .unwrap_or_else(|_| default_temperature().to_string())
-                .parse()
-                .unwrap_or(default_temperature()),
+            model,
             project_root,
-            max_file_bytes: std::env::var("MAX_FILE_BYTES")
-                .unwrap_or_else(|_| default_max_file_bytes().to_string())
-                .parse()
-                .unwrap_or(default_max_file_bytes()),
-            max_payload_tokens: std::env::var("MAX_PAYLOAD_TOKENS")
-                .unwrap_or_else(|_| default_max_payload_tokens().to_string())
-                .parse()
-                .unwrap_or(default_max_payload_tokens()),
-            chunk_target_tokens: std::env::var("CHUNK_TARGET_TOKENS")
-                .unwrap_or_else(|_| default_chunk_target_tokens().to_string())
-                .parse()
-                .unwrap_or(default_chunk_target_tokens()),
-            rate_limit_rps: std::env::var("RATE_LIMIT_RPS")
-                .unwrap_or_else(|_| default_rate_limit_rps().to_string())
-                .parse()
-                .unwrap_or(default_rate_limit_rps()),
-            timeout_seconds: std::env::var("TIMEOUT_SECONDS")
-                .unwrap_or_else(|_| default_timeout_seconds().to_string())
-                .parse()
-                .unwrap_or(default_timeout_seconds()),
             output_file,
-            include_fixes: std::env::var("INCLUDE_FIXES")
-                .unwrap_or_else(|_| default_include_fixes().to_string())
-                .parse()
-                .unwrap_or(default_include_fixes()),
-            report_level: std::env::var("REPORT_LEVEL").unwrap_or_else(|_| default_report_level()),
+            include_fixes,
+            report_level,
+            openai_base_url,
+            temperature,
+            max_file_bytes,
+            max_payload_tokens,
+            chunk_target_tokens,
+            rate_limit_rps,
+            timeout_seconds,
         })
     }
 
-    /// Valida a configuração
+    /// Validates the configuration
     pub fn validate(&self) -> crate::Result<()> {
         if self.openai_api_key.is_empty() {
-            return Err(crate::Error::Config(
-                "OPENAI_API_KEY não pode estar vazia".to_string(),
+            return Err(crate::error::CodeQLError::ConfigError(
+                "OpenAI API key is required".to_string(),
             ));
         }
 
-        if !self.project_root.exists() {
-            return Err(crate::Error::Config(format!(
-                "Diretório do projeto não existe: {:?}",
-                self.project_root
-            )));
+        if self.temperature < 0.0 || self.temperature > 2.0 {
+            return Err(crate::error::CodeQLError::ConfigError(
+                "Temperature must be between 0.0 and 2.0".to_string(),
+            ));
         }
 
-        if self.temperature < 0.0 || self.temperature > 2.0 {
-            return Err(crate::Error::Config(
-                "Temperatura deve estar entre 0.0 e 2.0".to_string(),
+        if self.max_file_bytes == 0 {
+            return Err(crate::error::CodeQLError::ConfigError(
+                "Max file bytes must be greater than 0".to_string(),
+            ));
+        }
+
+        if self.max_payload_tokens == 0 {
+            return Err(crate::error::CodeQLError::ConfigError(
+                "Max payload tokens must be greater than 0".to_string(),
+            ));
+        }
+
+        if self.chunk_target_tokens == 0 {
+            return Err(crate::error::CodeQLError::ConfigError(
+                "Chunk target tokens must be greater than 0".to_string(),
             ));
         }
 
         if self.rate_limit_rps == 0 {
-            return Err(crate::Error::Config(
-                "Rate limit deve ser maior que 0".to_string(),
+            return Err(crate::error::CodeQLError::ConfigError(
+                "Rate limit RPS must be greater than 0".to_string(),
+            ));
+        }
+
+        if self.timeout_seconds == 0 {
+            return Err(crate::error::CodeQLError::ConfigError(
+                "Timeout seconds must be greater than 0".to_string(),
             ));
         }
 
         Ok(())
     }
-}
-
-// Funções de default
-fn default_openai_url() -> String {
-    "https://api.openai.com/v1/chat/completions".to_string()
-}
-
-fn default_model() -> String {
-    "gpt-3.5-turbo".to_string()
-}
-
-fn default_temperature() -> f32 {
-    0.8
-}
-
-fn default_max_file_bytes() -> usize {
-    350_000 // ~350 KB
-}
-
-fn default_max_payload_tokens() -> usize {
-    120_000
-}
-
-fn default_chunk_target_tokens() -> usize {
-    3_000
-}
-
-fn default_rate_limit_rps() -> u32 {
-    2
-}
-
-fn default_timeout_seconds() -> u64 {
-    120
-}
-
-fn default_include_fixes() -> bool {
-    false
-}
-
-fn default_report_level() -> String {
-    "medium".to_string()
 }

@@ -17,10 +17,10 @@ jobs:
       contents: write
     
     steps:
-      - name: Checkout código
+      - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Configurar Rust
+      - name: Setup Rust
         uses: actions-rs/toolchain@v1
         with:
           toolchain: stable
@@ -29,13 +29,13 @@ jobs:
       - name: Build release
         run: cargo build --release
 
-      - name: Preparar binário
+      - name: Prepare binary
         run: |
           cp target/release/codeql-ai ./codeql-ai
           chmod +x ./codeql-ai
           tar -czf codeql-ai-linux.tar.gz codeql-ai
 
-      - name: Upload binário
+      - name: Upload binary
         uses: actions/upload-artifact@v4
         with:
           name: codeql-ai-linux
@@ -43,7 +43,7 @@ jobs:
             codeql-ai
             codeql-ai-linux.tar.gz
 
-      - name: Gerar Release
+      - name: Create Release
         uses: softprops/action-gh-release@v1
         if: startsWith(github.ref, 'refs/tags/')
         with:
