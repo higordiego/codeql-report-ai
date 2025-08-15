@@ -390,7 +390,7 @@ async fn main() -> Result<()> {
                     );
                     println!(
                         "{}",
-                        "   -p <path>     Project root directory (required)".bright_white()
+                        "   -p <path>     Project root directory (optional, defaults to current dir)".bright_white()
                     );
                     println!(
                         "{}",
