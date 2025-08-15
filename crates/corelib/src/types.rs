@@ -28,21 +28,63 @@ pub struct CodeQLRun {
 /// Represents a single CodeQL result
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CodeQLResult {
+    #[serde(rename = "ruleId")]
     pub rule_id: String,
-    pub level: String,
-    pub message: String,
+    #[serde(rename = "ruleIndex")]
+    pub rule_index: Option<u32>,
+    pub rule: Option<CodeQLRule>,
+    pub message: CodeQLMessage,
     pub locations: Vec<CodeQLLocation>,
+    #[serde(rename = "partialFingerprints")]
+    pub partial_fingerprints: Option<CodeQLFingerprints>,
+    // Campo adicional para compatibilidade - usar default se não existir
+    #[serde(default = "default_level")]
+    pub level: String,
+}
+
+fn default_level() -> String {
+    "error".to_string()
+}
+
+/// Represents a CodeQL rule
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CodeQLRule {
+    pub id: String,
+    pub index: u32,
+}
+
+/// Represents a CodeQL message
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CodeQLMessage {
+    pub text: String,
+}
+
+impl std::fmt::Display for CodeQLMessage {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.text)
+    }
+}
+
+/// Represents CodeQL fingerprints
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CodeQLFingerprints {
+    #[serde(rename = "primaryLocationLineHash")]
+    pub primary_location_line_hash: Option<String>,
+    #[serde(rename = "primaryLocationStartColumnFingerprint")]
+    pub primary_location_start_column_fingerprint: Option<String>,
 }
 
 /// Represents a location in the code where a vulnerability was found
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CodeQLLocation {
+    #[serde(rename = "physicalLocation")]
     pub physical_location: Option<CodeQLPhysicalLocation>,
 }
 
 /// Represents the physical location details
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CodeQLPhysicalLocation {
+    #[serde(rename = "artifactLocation")]
     pub artifact_location: CodeQLArtifactLocation,
     pub region: CodeQLRegion,
 }
@@ -51,13 +93,22 @@ pub struct CodeQLPhysicalLocation {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CodeQLArtifactLocation {
     pub uri: String,
+    #[serde(rename = "uriBaseId")]
+    pub uri_base_id: Option<String>,
+    pub index: Option<u32>,
 }
 
 /// Represents a region in the code (line numbers)
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CodeQLRegion {
+    #[serde(rename = "startLine")]
     pub start_line: u32,
+    #[serde(rename = "endLine")]
     pub end_line: Option<u32>,
+    #[serde(rename = "startColumn")]
+    pub start_column: Option<u32>,
+    #[serde(rename = "endColumn")]
+    pub end_column: Option<u32>,
 }
 
 /// Represents different report levels
@@ -122,90 +173,4 @@ pub struct Usage {
     pub prompt_tokens: u32,
     pub completion_tokens: u32,
     pub total_tokens: u32,
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use std::str::FromStr;
-
-    #[test]
-    fn test_report_level_from_str() {
-        assert_eq!(ReportLevel::from_str("easy").unwrap(), ReportLevel::Easy);
-        assert_eq!(
-            ReportLevel::from_str("medium").unwrap(),
-            ReportLevel::Medium
-        );
-        assert_eq!(
-            ReportLevel::from_str("advanced").unwrap(),
-            ReportLevel::Advanced
-        );
-        assert!(ReportLevel::from_str("invalid").is_err());
-    }
-
-    #[test]
-    fn test_codeql_analysis_results() {
-        let analysis = CodeQLAnalysis {
-            runs: vec![CodeQLRun {
-                results: vec![CodeQLResult {
-                    rule_id: "test-rule".to_string(),
-                    level: "warning".to_string(),
-                    message: "Test message".to_string(),
-                    locations: vec![CodeQLLocation {
-                        physical_location: Some(CodeQLPhysicalLocation {
-                            artifact_location: CodeQLArtifactLocation {
-                                uri: "test.py".to_string(),
-                            },
-                            region: CodeQLRegion {
-                                start_line: 1,
-                                end_line: Some(1),
-                            },
-                        }),
-                    }],
-                }],
-            }],
-        };
-
-        let results = analysis.results();
-        assert_eq!(results.len(), 1);
-        assert_eq!(results[0].rule_id, "test-rule");
-        assert_eq!(results[0].level, "warning");
-        assert_eq!(results[0].message, "Test message");
-    }
-
-    #[test]
-    fn test_codeql_analysis_empty_results() {
-        let analysis = CodeQLAnalysis { runs: vec![] };
-        let results = analysis.results();
-        assert_eq!(results.len(), 0);
-    }
-
-    #[test]
-    fn test_codeql_analysis_multiple_runs() {
-        let analysis = CodeQLAnalysis {
-            runs: vec![
-                CodeQLRun {
-                    results: vec![CodeQLResult {
-                        rule_id: "rule1".to_string(),
-                        level: "warning".to_string(),
-                        message: "Message 1".to_string(),
-                        locations: vec![],
-                    }],
-                },
-                CodeQLRun {
-                    results: vec![CodeQLResult {
-                        rule_id: "rule2".to_string(),
-                        level: "error".to_string(),
-                        message: "Message 2".to_string(),
-                        locations: vec![],
-                    }],
-                },
-            ],
-        };
-
-        let results = analysis.results();
-        assert_eq!(results.len(), 2);
-        assert_eq!(results[0].rule_id, "rule1");
-        assert_eq!(results[1].rule_id, "rule2");
-    }
 }

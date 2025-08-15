@@ -362,6 +362,19 @@ async fn main() -> Result<()> {
                         "{}",
                         "   ./codeql-ai -i <file.json> -p <path> -v debug".bright_white()
                     );
+                    println!(
+                        "{}",
+                        "   ./codeql-ai -i <file.json> -p <path> --report-level advanced"
+                            .bright_white()
+                    );
+                    println!(
+                        "{}",
+                        "   ./codeql-ai -i <file.json> -p <path> --include-fixes".bright_white()
+                    );
+                    println!(
+                        "{}",
+                        "   ./codeql-ai -i <file.json> -p <path> --model gpt-4".bright_white()
+                    );
                     println!();
                     println!("{}", "🔧 Commands:".bright_yellow());
                     println!(
@@ -387,6 +400,22 @@ async fn main() -> Result<()> {
                     println!(
                         "{}",
                         "   -v <level>    Verbosity: debug, trace".bright_white()
+                    );
+                    println!(
+                        "{}",
+                        "   --model <model>  ChatGPT model (default: gpt-3.5-turbo)".bright_white()
+                    );
+                    println!(
+                        "{}",
+                        "   --openai-api-key <key>  OpenAI API key (optional)".bright_white()
+                    );
+                    println!(
+                        "{}",
+                        "   --include-fixes  Include code correction suggestions".bright_white()
+                    );
+                    println!(
+                        "{}",
+                        "   --report-level <level>  Report level: easy, medium, advanced (default: medium)".bright_white()
                     );
                     println!("{}", "   --help        Show all options".bright_white());
                     println!();

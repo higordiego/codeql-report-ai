@@ -31,18 +31,6 @@ test:
 	$(CARGO) test
 	@echo "✅ Tests completed!"
 
-# Run unit tests only
-.PHONY: test-unit
-test-unit:
-	@echo "🧪 Running unit tests..."
-	$(CARGO) test --lib
-	@echo "✅ Unit tests completed!"
-
-# Run all test suites
-.PHONY: test-all
-test-all: test-unit
-	@echo "🎉 All test suites completed!"
-
 # Clean build artifacts
 .PHONY: clean
 clean:
@@ -114,8 +102,6 @@ info:
 	@echo "📚 Available Commands:"
 	@echo "  make build      - Build the project"
 	@echo "  make test       - Run all tests"
-	@echo "  make test-unit  - Run unit tests only"
-	@echo "  make test-all   - Run all test suites"
 	@echo "  make clean      - Clean build artifacts"
 	@echo "  make install    - Install to system"
 	@echo "  make format     - Format code"

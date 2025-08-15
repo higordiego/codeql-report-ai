@@ -250,17 +250,17 @@ impl CodeQLAnalysis {
         
         Ok(CodeQLResult {
             file: file_path.to_string(),
-            line: region.as_ref().and_then(|r| r.start_line),
-            column: region.as_ref().and_then(|r| r.start_column),
-            end_line: region.as_ref().and_then(|r| r.end_line),
-            end_column: region.as_ref().and_then(|r| r.end_column),
+            line: Some(region.start_line),
+            column: region.start_column,
+            end_line: region.end_line,
+            end_column: region.end_column,
             message: sarif_result.message.text,
-            severity: sarif_result.level,
-            category: sarif_result.rule_id,
+            severity: Some("error".to_string()), // SARIF não tem level, usar default
+            category: Some(sarif_result.rule_id),
             cwe: None, // SARIF não tem CWE por padrão
             description: None,
             suggestions: None,
-            metadata: sarif_result.metadata,
+            metadata: HashMap::new(), // SARIF não tem metadata neste nível
         })
     }
     
