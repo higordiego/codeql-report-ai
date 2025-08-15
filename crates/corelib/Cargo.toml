@@ -29,3 +29,8 @@ regex.workspace = true
 [lib]
 name = "codeql_corelib"
 path = "src/lib.rs"
+
+[dev-dependencies]
+tokio-test = "0.4"
+tempfile = "3.8"
+mockito = "1.2"

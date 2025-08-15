@@ -13,7 +13,7 @@
 //!
 //! ## Quick Start
 //!
-//! ```rust
+//! ```rust,no_run
 //! use codeql_corelib::{CodeQLAnalyzer, Config};
 //!
 //! #[tokio::main]
@@ -36,8 +36,17 @@
 //!
 //! The library can automatically generate corrected code for identified vulnerabilities:
 //!
-//! ```rust
-//! analyzer.generate_fixed_code("results.json", "fixed_code.py").await?;
+//! ```rust,no_run
+//! use codeql_corelib::{CodeQLAnalyzer, Config};
+//!
+//! #[tokio::main]
+//! async fn main() -> codeql_corelib::Result<()> {
+//!     let config = Config::default();
+//!     let analyzer = CodeQLAnalyzer::new(config)?;
+//!     
+//!     analyzer.generate_fixed_code("results.json", "fixed_code.py").await?;
+//!     Ok(())
+//! }
 //! ```
 //!
 //! ## Configuration
@@ -45,14 +54,23 @@
 //! Configure the analyzer using environment variables or programmatically:
 //!
 //! ```rust
+//! use codeql_corelib::Config;
+//! use std::path::PathBuf;
+//!
 //! let config = Config {
 //!     openai_api_key: "your-api-key".to_string(),
 //!     model: "gpt-3.5-turbo".to_string(),
-//!     project_root: std::path::PathBuf::from("."),
-//!     output_file: std::path::PathBuf::from("report.md"),
+//!     project_root: PathBuf::from("."),
+//!     output_file: PathBuf::from("report.md"),
 //!     include_fixes: true,
 //!     report_level: "advanced".to_string(),
-//!     // ... other options
+//!     temperature: 0.8,
+//!     timeout_seconds: 120,
+//!     openai_base_url: "https://api.openai.com/v1/chat/completions".to_string(),
+//!     max_file_bytes: 350_000,
+//!     max_payload_tokens: 120_000,
+//!     chunk_target_tokens: 3_000,
+//!     rate_limit_rps: 30,
 //! };
 //! ```
 

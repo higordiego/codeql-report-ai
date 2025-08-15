@@ -363,3 +363,62 @@ Response Format:
         formatted
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::config::Config;
+
+    #[test]
+    fn test_chatgpt_client_new() {
+        let config = Config::default();
+        let client = ChatGPTClient::new(&config);
+        assert!(client.is_ok());
+    }
+
+    #[test]
+    fn test_format_code_snippets() {
+        let config = Config::default();
+        let client = ChatGPTClient::new(&config).unwrap();
+
+        let snippets = vec![
+            ("test.py".to_string(), "print('hello')".to_string()),
+            ("main.py".to_string(), "import os".to_string()),
+        ];
+
+        let formatted = client.format_code_snippets(&snippets);
+        assert!(formatted.contains("File: test.py"));
+        assert!(formatted.contains("File: main.py"));
+        assert!(formatted.contains("print('hello')"));
+        assert!(formatted.contains("import os"));
+        assert!(formatted.contains("```python"));
+    }
+
+    #[test]
+    fn test_format_code_snippets_empty() {
+        let config = Config::default();
+        let client = ChatGPTClient::new(&config).unwrap();
+
+        let snippets = vec![];
+        let formatted = client.format_code_snippets(&snippets);
+        assert_eq!(formatted, "");
+    }
+
+    #[test]
+    fn test_system_prompts() {
+        let config = Config::default();
+        let client = ChatGPTClient::new(&config).unwrap();
+
+        let medium_prompt = client.get_medium_report_system_prompt();
+        let advanced_prompt = client.get_advanced_report_system_prompt();
+        let code_fix_prompt = client.get_code_fix_system_prompt();
+
+        assert!(!medium_prompt.is_empty());
+        assert!(!advanced_prompt.is_empty());
+        assert!(!code_fix_prompt.is_empty());
+
+        assert!(medium_prompt.contains("cybersecurity expert"));
+        assert!(advanced_prompt.contains("senior cybersecurity expert"));
+        assert!(code_fix_prompt.contains("security and Python development expert"));
+    }
+}

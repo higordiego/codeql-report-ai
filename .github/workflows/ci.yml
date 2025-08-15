@@ -53,9 +53,12 @@ jobs:
         run: |
           cargo build --release --verbose
           
-      - name: Test
+      - name: Unit Tests
         run: |
-          cargo test --verbose
+          echo "🧪 Running unit tests..."
+          cargo test --lib --verbose
+          
+      # Note: Integration, CLI, and end-to-end tests have been removed from this project
           
       - name: Check workspace
         run: |

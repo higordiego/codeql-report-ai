@@ -21,3 +21,9 @@ colored.workspace = true
 [[bin]]
 name = "codeql-ai"
 path = "src/main.rs"
+
+[dev-dependencies]
+tokio-test = "0.4"
+tempfile = "3.8"
+assert_cmd = "2.0"
+predicates = "3.0"

@@ -123,3 +123,89 @@ pub struct Usage {
     pub completion_tokens: u32,
     pub total_tokens: u32,
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::str::FromStr;
+
+    #[test]
+    fn test_report_level_from_str() {
+        assert_eq!(ReportLevel::from_str("easy").unwrap(), ReportLevel::Easy);
+        assert_eq!(
+            ReportLevel::from_str("medium").unwrap(),
+            ReportLevel::Medium
+        );
+        assert_eq!(
+            ReportLevel::from_str("advanced").unwrap(),
+            ReportLevel::Advanced
+        );
+        assert!(ReportLevel::from_str("invalid").is_err());
+    }
+
+    #[test]
+    fn test_codeql_analysis_results() {
+        let analysis = CodeQLAnalysis {
+            runs: vec![CodeQLRun {
+                results: vec![CodeQLResult {
+                    rule_id: "test-rule".to_string(),
+                    level: "warning".to_string(),
+                    message: "Test message".to_string(),
+                    locations: vec![CodeQLLocation {
+                        physical_location: Some(CodeQLPhysicalLocation {
+                            artifact_location: CodeQLArtifactLocation {
+                                uri: "test.py".to_string(),
+                            },
+                            region: CodeQLRegion {
+                                start_line: 1,
+                                end_line: Some(1),
+                            },
+                        }),
+                    }],
+                }],
+            }],
+        };
+
+        let results = analysis.results();
+        assert_eq!(results.len(), 1);
+        assert_eq!(results[0].rule_id, "test-rule");
+        assert_eq!(results[0].level, "warning");
+        assert_eq!(results[0].message, "Test message");
+    }
+
+    #[test]
+    fn test_codeql_analysis_empty_results() {
+        let analysis = CodeQLAnalysis { runs: vec![] };
+        let results = analysis.results();
+        assert_eq!(results.len(), 0);
+    }
+
+    #[test]
+    fn test_codeql_analysis_multiple_runs() {
+        let analysis = CodeQLAnalysis {
+            runs: vec![
+                CodeQLRun {
+                    results: vec![CodeQLResult {
+                        rule_id: "rule1".to_string(),
+                        level: "warning".to_string(),
+                        message: "Message 1".to_string(),
+                        locations: vec![],
+                    }],
+                },
+                CodeQLRun {
+                    results: vec![CodeQLResult {
+                        rule_id: "rule2".to_string(),
+                        level: "error".to_string(),
+                        message: "Message 2".to_string(),
+                        locations: vec![],
+                    }],
+                },
+            ],
+        };
+
+        let results = analysis.results();
+        assert_eq!(results.len(), 2);
+        assert_eq!(results[0].rule_id, "rule1");
+        assert_eq!(results[1].rule_id, "rule2");
+    }
+}

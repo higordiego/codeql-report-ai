@@ -137,7 +137,7 @@ struct Cli {
     verbosity: Option<Level>,
 
     /// Include code correction suggestions in the report
-    #[arg(short, long, help_heading = "ANALYSIS")]
+    #[arg(long, help_heading = "ANALYSIS")]
     include_fixes: bool,
 
     /// Report level (easy, medium, advanced)

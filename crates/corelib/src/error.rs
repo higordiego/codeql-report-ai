@@ -69,3 +69,51 @@ impl From<reqwest::Error> for CodeQLError {
 
 /// Result type for CodeQL operations
 pub type Result<T> = std::result::Result<T, CodeQLError>;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::error::Error;
+
+    #[test]
+    fn test_file_read_error() {
+        let error = CodeQLError::FileReadError("Test error".to_string());
+        assert_eq!(error.to_string(), "File read error: Test error");
+    }
+
+    #[test]
+    fn test_file_write_error() {
+        let error = CodeQLError::FileWriteError("Test error".to_string());
+        assert_eq!(error.to_string(), "File write error: Test error");
+    }
+
+    #[test]
+    fn test_json_parse_error() {
+        let error = CodeQLError::JsonParseError("Test error".to_string());
+        assert_eq!(error.to_string(), "JSON parsing error: Test error");
+    }
+
+    #[test]
+    fn test_network_error() {
+        let error = CodeQLError::NetworkError("Test error".to_string());
+        assert_eq!(error.to_string(), "Network error: Test error");
+    }
+
+    #[test]
+    fn test_api_error() {
+        let error = CodeQLError::ApiError("Test error".to_string());
+        assert_eq!(error.to_string(), "API error: Test error");
+    }
+
+    #[test]
+    fn test_config_error() {
+        let error = CodeQLError::ConfigError("Test error".to_string());
+        assert_eq!(error.to_string(), "Configuration error: Test error");
+    }
+
+    #[test]
+    fn test_error_source() {
+        let error = CodeQLError::FileReadError("Test error".to_string());
+        assert!(error.source().is_none());
+    }
+}
