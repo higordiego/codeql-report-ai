@@ -97,26 +97,26 @@ impl ChatGPTClient {
         let user_message = ChatMessage {
             role: "user".to_string(),
             content: format!(
-                r#"Analyze the following CodeQL JSON and code file to generate a detailed security report.
+                r#"Analise o seguinte JSON do CodeQL e arquivo de código para gerar um relatório de segurança detalhado.
 
-CodeQL Results JSON:
+JSON dos Resultados do CodeQL:
 {}
 
-Full File Content:
+Conteúdo Completo do Arquivo:
 {}
 
-Code Snippets from Problematic Lines:
+Trechos de Código das Linhas Problemáticas:
 {}
 
-Please generate a comprehensive security report that includes:
-1. Executive Summary
-2. Statistics by severity and rule type
-3. Detailed analysis of each finding
-4. Code snippets showing the problematic lines
-5. Security implications and risks
-6. Recommendations for fixing each vulnerability
+Por favor, gere um relatório de segurança abrangente que inclua:
+1. Resumo Executivo
+2. Estatísticas por severidade e tipo de regra
+3. Análise detalhada de cada descoberta
+4. Trechos de código mostrando as linhas problemáticas
+5. Implicações de segurança e riscos
+6. Recomendações para corrigir cada vulnerabilidade
 
-Format the report in Markdown with clear sections and code blocks."#,
+Formate o relatório em Markdown com seções claras e blocos de código."#,
                 original_json,
                 full_file_content,
                 self.format_code_snippets(code_snippets)
@@ -144,28 +144,28 @@ Format the report in Markdown with clear sections and code blocks."#,
         let user_message = ChatMessage {
             role: "user".to_string(),
             content: format!(
-                r#"Analyze the following CodeQL JSON and code file to generate an advanced security report with correction recommendations.
+                r#"Analise o seguinte JSON do CodeQL e arquivo de código para gerar um relatório de segurança avançado com recomendações de correção.
 
-CodeQL Results JSON:
+JSON dos Resultados do CodeQL:
 {}
 
-Full File Content:
+Conteúdo Completo do Arquivo:
 {}
 
-Code Snippets from Problematic Lines:
+Trechos de Código das Linhas Problemáticas:
 {}
 
-Please generate a comprehensive security report that includes:
-1. Executive Summary
-2. Statistics by severity and rule type
-3. Detailed analysis of each finding
-4. Code snippets showing the problematic lines
-5. Security implications and risks
-6. Specific correction recommendations for each vulnerability
-7. Code examples showing how to fix each issue
-8. General security best practices
+Por favor, gere um relatório de segurança abrangente que inclua:
+1. Resumo Executivo
+2. Estatísticas por severidade e tipo de regra
+3. Análise detalhada de cada descoberta
+4. Trechos de código mostrando as linhas problemáticas
+5. Implicações de segurança e riscos
+6. Recomendações específicas de correção para cada vulnerabilidade
+7. Exemplos de código mostrando como corrigir cada problema
+8. Melhores práticas gerais de segurança
 
-Format the report in Markdown with clear sections, code blocks, and actionable recommendations."#,
+Formate o relatório em Markdown com seções claras, blocos de código e recomendações acionáveis."#,
                 original_json,
                 full_file_content,
                 self.format_code_snippets(code_snippets)
@@ -193,23 +193,23 @@ Format the report in Markdown with clear sections, code blocks, and actionable r
         let user_message = ChatMessage {
             role: "user".to_string(),
             content: format!(
-                r#"Analyze the following CodeQL JSON and code file to generate corrected and secure code.
+                r#"Analise o seguinte JSON do CodeQL e arquivo de código para gerar código corrigido e seguro.
 
-CodeQL Results JSON:
+JSON dos Resultados do CodeQL:
 {}
 
-Full File Content:
+Conteúdo Completo do Arquivo:
 {}
 
-Please generate corrected code that:
-1. Addresses all security vulnerabilities identified in the CodeQL results
-2. Implements proper input validation
-3. Uses secure coding practices
-4. Includes logging for audit purposes
-5. Handles exceptions properly
-6. Maintains the original functionality while being secure
+Por favor, gere código corrigido que:
+1. Aborde todas as vulnerabilidades de segurança identificadas nos resultados do CodeQL
+2. Implemente validação adequada de entrada
+3. Use práticas seguras de codificação
+4. Inclua logging para fins de auditoria
+5. Trate exceções adequadamente
+6. Mantenha a funcionalidade original sendo seguro
 
-Return ONLY the corrected Python code without any explanations or markdown formatting."#,
+Retorne APENAS o código Python corrigido sem explicações ou formatação markdown."#,
                 original_json, full_file_content
             ),
         };

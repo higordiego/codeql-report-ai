@@ -277,10 +277,10 @@ impl CodeQLAnalyzer {
         let mut report = String::new();
 
         // Header
-        report.push_str("# CodeQL Security Analysis Report\n\n");
-        report.push_str("## Executive Summary\n\n");
+        report.push_str("# Relatório de Análise de Segurança CodeQL\n\n");
+        report.push_str("## Resumo Executivo\n\n");
         report.push_str(&format!(
-            "- **Total Findings**: {}\n",
+            "- **Total de Descobertas**: {}\n",
             analysis.results().len()
         ));
 
@@ -293,33 +293,33 @@ impl CodeQLAnalyzer {
             *rule_counts.entry(result.rule_id.clone()).or_insert(0) += 1;
         }
 
-        report.push_str("## Statistics\n\n");
-        report.push_str("### By Severity\n");
+        report.push_str("## Estatísticas\n\n");
+        report.push_str("### Por Severidade\n");
         for (severity, count) in &severity_counts {
-            report.push_str(&format!("- **{}**: {} findings\n", severity, count));
+            report.push_str(&format!("- **{}**: {} descobertas\n", severity, count));
         }
 
-        report.push_str("\n### By Rule\n");
+        report.push_str("\n### Por Regra\n");
         for (rule, count) in &rule_counts {
-            report.push_str(&format!("- **{}**: {} findings\n", rule, count));
+            report.push_str(&format!("- **{}**: {} descobertas\n", rule, count));
         }
 
         // Detailed findings
-        report.push_str("\n## Detailed Findings\n\n");
+        report.push_str("\n## Descobertas Detalhadas\n\n");
         for (i, result) in analysis.results().iter().enumerate() {
-            report.push_str(&format!("### Finding {}\n\n", i + 1));
-            report.push_str(&format!("- **Rule**: {}\n", result.rule_id));
-            report.push_str(&format!("- **Severity**: {}\n", result.level));
-            report.push_str(&format!("- **Message**: {}\n", result.message));
+            report.push_str(&format!("### Descoberta {}\n\n", i + 1));
+            report.push_str(&format!("- **Regra**: {}\n", result.rule_id));
+            report.push_str(&format!("- **Severidade**: {}\n", result.level));
+            report.push_str(&format!("- **Mensagem**: {}\n", result.message));
 
             if let Some(location) = &result.locations.first() {
                 if let Some(physical_location) = &location.physical_location {
                     report.push_str(&format!(
-                        "- **File**: {}\n",
+                        "- **Arquivo**: {}\n",
                         physical_location.artifact_location.uri
                     ));
                     report.push_str(&format!(
-                        "- **Line**: {}\n",
+                        "- **Linha**: {}\n",
                         physical_location.region.start_line
                     ));
                 }
@@ -340,10 +340,10 @@ impl CodeQLAnalyzer {
         let mut report = String::new();
 
         // Header
-        report.push_str("# CodeQL Security Analysis Report - Advanced\n\n");
-        report.push_str("## Executive Summary\n\n");
+        report.push_str("# Relatório de Análise de Segurança CodeQL - Avançado\n\n");
+        report.push_str("## Resumo Executivo\n\n");
         report.push_str(&format!(
-            "- **Total Findings**: {}\n",
+            "- **Total de Descobertas**: {}\n",
             analysis.results().len()
         ));
 
@@ -356,24 +356,24 @@ impl CodeQLAnalyzer {
             *rule_counts.entry(result.rule_id.clone()).or_insert(0) += 1;
         }
 
-        report.push_str("## Statistics\n\n");
-        report.push_str("### By Severity\n");
+        report.push_str("## Estatísticas\n\n");
+        report.push_str("### Por Severidade\n");
         for (severity, count) in &severity_counts {
-            report.push_str(&format!("- **{}**: {} findings\n", severity, count));
+            report.push_str(&format!("- **{}**: {} descobertas\n", severity, count));
         }
 
-        report.push_str("\n### By Rule\n");
+        report.push_str("\n### Por Regra\n");
         for (rule, count) in &rule_counts {
-            report.push_str(&format!("- **{}**: {} findings\n", rule, count));
+            report.push_str(&format!("- **{}**: {} descobertas\n", rule, count));
         }
 
         // Detailed findings with code snippets
-        report.push_str("\n## Detailed Findings\n\n");
+        report.push_str("\n## Descobertas Detalhadas\n\n");
         for (i, result) in analysis.results().iter().enumerate() {
-            report.push_str(&format!("### Finding {}\n\n", i + 1));
-            report.push_str(&format!("- **Rule**: {}\n", result.rule_id));
-            report.push_str(&format!("- **Severity**: {}\n", result.level));
-            report.push_str(&format!("- **Message**: {}\n", result.message));
+            report.push_str(&format!("### Descoberta {}\n\n", i + 1));
+            report.push_str(&format!("- **Regra**: {}\n", result.rule_id));
+            report.push_str(&format!("- **Severidade**: {}\n", result.level));
+            report.push_str(&format!("- **Mensagem**: {}\n", result.message));
 
             if let Some(location) = &result.locations.first() {
                 if let Some(physical_location) = &location.physical_location {
@@ -391,7 +391,7 @@ impl CodeQLAnalyzer {
                         .iter()
                         .find(|(file, _)| file == &physical_location.artifact_location.uri)
                     {
-                        report.push_str("\n**Affected Code:**\n");
+                        report.push_str("\n**Código Afetado:**\n");
                         report.push_str("```python\n");
                         report.push_str(snippet);
                         report.push_str("\n```\n");
@@ -400,27 +400,29 @@ impl CodeQLAnalyzer {
             }
 
             // Add correction recommendation
-            report.push_str("\n**Correction Recommendation:**\n");
-            report.push_str("Review the identified security vulnerability and implement appropriate security measures. Consider input validation, parameterized queries, or secure coding practices.\n");
+            report.push_str("\n**Recomendação de Correção:**\n");
+            report.push_str("Revise a vulnerabilidade de segurança identificada e implemente medidas de segurança apropriadas. Considere validação de entrada, consultas parametrizadas ou práticas seguras de codificação.\n");
 
             report.push('\n');
         }
 
         // General correction recommendations
-        report.push_str("## Correction Recommendations\n\n");
-        report.push_str("### General Security Best Practices\n\n");
-        report.push_str("1. **Input Validation**: Always validate and sanitize user inputs\n");
+        report.push_str("## Recomendações de Correção\n\n");
+        report.push_str("### Melhores Práticas Gerais de Segurança\n\n");
         report.push_str(
-            "2. **Parameterized Queries**: Use parameterized queries to prevent SQL injection\n",
+            "1. **Validação de Entrada**: Sempre valide e sanitize entradas do usuário\n",
+        );
+        report.push_str(
+            "2. **Consultas Parametrizadas**: Use consultas parametrizadas para prevenir injeção SQL\n",
         );
         report
-            .push_str("3. **Command Execution**: Avoid direct command execution with user input\n");
+            .push_str("3. **Execução de Comandos**: Evite execução direta de comandos com entrada do usuário\n");
         report.push_str(
-            "4. **File Operations**: Validate file paths and use secure file operations\n",
+            "4. **Operações de Arquivo**: Valide caminhos de arquivo e use operações seguras de arquivo\n",
         );
-        report.push_str("5. **Error Handling**: Implement proper error handling without exposing sensitive information\n");
-        report.push_str("6. **Authentication**: Ensure proper authentication and authorization\n");
-        report.push_str("7. **Logging**: Implement security logging for audit purposes\n");
+        report.push_str("5. **Tratamento de Erros**: Implemente tratamento adequado de erros sem expor informações sensíveis\n");
+        report.push_str("6. **Autenticação**: Garanta autenticação e autorização adequadas\n");
+        report.push_str("7. **Logging**: Implemente logging de segurança para fins de auditoria\n");
 
         Ok(report)
     }
